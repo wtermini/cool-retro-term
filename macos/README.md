@@ -91,6 +91,10 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
+- **Tab names** follow the title the running program sets: the shell's
+  current command or directory, or Claude Code's session name. **Shell ▸
+  Rename Tab…** (Shift-Cmd-R) gives a tab a fixed name instead; leave it
+  empty or choose Automatic to go back.
 - **Shell ▸ Tab Color** gives the current tab a colour (or Custom… for any
   colour). It shows as a dot and a coloured title in the tab, and tints the
   CRT bezel, so it's visible even without a tab bar. Programs and shell

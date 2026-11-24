@@ -65,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         return controllers.first { $0.window === window }
     }
 
+    @MainActor @objc func renameTab(_ sender: Any?) {
+        frontController?.promptRename()
+    }
+
     @MainActor @objc func chooseTabColor(_ sender: NSMenuItem) {
         let name = sender.representedObject as? String
         frontController?.setTabColor(name.flatMap(TabColorPalette.color(named:)), name: name)
@@ -150,6 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(selectProfile(_:)):
             let name = ProfileStore.shared.current.name
             menuItem.state = !name.isEmpty && (menuItem.representedObject as? String) == name ? .on : .off
+        case #selector(renameTab(_:)):
+            return frontController != nil
         case #selector(chooseTabColor(_:)):
             menuItem.state = (menuItem.representedObject as? String) == frontController?.tabColorName ? .on : .off
             return frontController != nil
@@ -220,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         shell.addItem(item("New Window", #selector(newWindow(_:)), "n"))
         shell.addItem(item("New Tab", #selector(newTab(_:)), "t"))
         shell.addItem(.separator())
+        shell.addItem(item("Rename Tab…", #selector(renameTab(_:)), "r", [.command, .shift]))
         let tabColors = NSMenu(title: "Tab Color")
         let none = item("None", #selector(chooseTabColor(_:)))
         tabColors.addItem(none)

@@ -26,6 +26,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
     let crtView: CRTTerminalView
     var onClose: ((TerminalWindowController) -> Void)?
 
+    /// Title set by the program running in the terminal (e.g. the shell, or
+    /// Claude Code's session name), and one the user typed with Rename Tab,
+    /// which takes precedence while set.
+    private var programTitle = "Cool Retro Term"
+    private(set) var customTitle: String?
+
     /// Tab colour picked from the menu (name from TabColorPalette, or "Custom").
     private(set) var tabColorName: String?
     private var userTabColor: NSColor?
@@ -153,6 +159,47 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         return "en_US.UTF-8"
     }
 
+    // MARK: Title
+
+    private func refreshTitle() {
+        window?.title = customTitle ?? programTitle
+        updateTabAppearance()
+    }
+
+    /// Sets a fixed name for this tab; nil goes back to the title programs set.
+    func setCustomTitle(_ title: String?) {
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        customTitle = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        refreshTitle()
+    }
+
+    /// Asks for a new tab name in a sheet on this window.
+    func promptRename() {
+        guard let window else { return }
+        let field = NSTextField(string: customTitle ?? window.title)
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        field.lineBreakMode = .byTruncatingTail
+
+        let alert = NSAlert()
+        alert.messageText = "Rename Tab"
+        alert.informativeText = "Leave empty, or choose Automatic, to show the title set by the program "
+            + "running in the tab again."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Automatic")
+        alert.window.initialFirstResponder = field
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            switch response {
+            case .alertFirstButtonReturn: self?.setCustomTitle(field.stringValue)
+            case .alertThirdButtonReturn: self?.setCustomTitle(nil)
+            default: break
+            }
+            self?.window?.makeFirstResponder(self?.crtView.terminal)
+        }
+    }
+
     // MARK: Tab colour
 
     var tabColor: NSColor? { userTabColor ?? programTabColor }
@@ -208,8 +255,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
 
     nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         Task { @MainActor [weak self] in
-            self?.window?.title = title.isEmpty ? "Cool Retro Term" : title
-            self?.updateTabAppearance()
+            self?.programTitle = title.isEmpty ? "Cool Retro Term" : title
+            self?.refreshTitle()
         }
     }
 
