@@ -57,6 +57,36 @@ jobs:
           done
           exit $status
 
+      - name: Show crash reports
+        # If the app crashed, print the crashed thread's stack from the
+        # macOS crash report so the failure can be diagnosed from the log.
+        if: failure()
+        run: |
+          sleep 10
+          shopt -s nullglob
+          ls -la ~/Library/Logs/DiagnosticReports/ || true
+          for report in ~/Library/Logs/DiagnosticReports/CoolRetroTerm*.ips; do
+            echo "::group::$report"
+            python3 - "$report" <<'PY'
+          import json, sys
+          text = open(sys.argv[1]).read()
+          header, _, body = text.partition("\n")
+          report = json.loads(body)
+          print("exception:", json.dumps(report.get("exception")))
+          print("termination:", json.dumps(report.get("termination")))
+          images = report.get("usedImages", [])
+          for thread in report.get("threads", []):
+              if not thread.get("triggered"):
+                  continue
+              print("crashed thread:", thread.get("queue") or thread.get("name"))
+              for frame in thread.get("frames", [])[:40]:
+                  image = images[frame["imageIndex"]].get("name", "?") if frame.get("imageIndex", -1) < len(images) else "?"
+                  print(f"  {image:30} {frame.get('symbol', hex(frame.get('imageOffset', 0)))}"
+                        f"  {frame.get('sourceFile', '')}:{frame.get('sourceLine', '')}")
+          PY
+            echo "::endgroup::"
+          done
+
       - name: Print screenshot previews
         # Small JPEGs as base64 in the log, for reviewing the rendering
         # without downloading the artifact.
