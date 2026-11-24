@@ -121,11 +121,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
         switch pane {
-        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 470))
-        case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 600))
-        case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 400))
-        case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 640))
-        case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 330))
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 560))
+        case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
+        case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 320))
+        case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
+        case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 240))
         }
     }
 }
