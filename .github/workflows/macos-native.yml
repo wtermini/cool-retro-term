@@ -57,6 +57,19 @@ jobs:
           done
           exit $status
 
+      - name: Print screenshot previews
+        # Small JPEGs as base64 in the log, for reviewing the rendering
+        # without downloading the artifact.
+        if: always()
+        run: |
+          for png in screenshots/*.png; do
+            [ -f "$png" ] || continue
+            sips -Z 720 -s format jpeg -s formatOptions 60 "$png" --out "$RUNNER_TEMP/preview.jpg" > /dev/null
+            echo "PREVIEW-BEGIN $(basename "$png" .png)"
+            base64 -i "$RUNNER_TEMP/preview.jpg" | fold -w 4000
+            echo "PREVIEW-END"
+          done
+
       - name: Package
         if: always()
         run: |
