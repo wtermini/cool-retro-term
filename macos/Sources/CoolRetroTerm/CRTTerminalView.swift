@@ -41,7 +41,8 @@ final class RetroTerminalView: LocalProcessTerminalView {
     /// Returns true if it handled the key.
     func handleModifiedReturn(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection([.shift, .control, .option, .command])
-        guard event.keyCode == 36 || event.keyCode == 76,   // Return, keypad Enter
+        guard ProfileStore.shared.newLineKeys,
+              event.keyCode == 36 || event.keyCode == 76,   // Return, keypad Enter
               flags == .shift || flags == .control,
               !hasMarkedText(),
               terminal.keyboardEnhancementFlags.isEmpty else { return false }
@@ -91,8 +92,13 @@ final class CRTOverlayView: MTKView {
     override func otherMouseUp(with event: NSEvent) { host?.forwardMouse(event) }
     override func scrollWheel(with event: NSEvent) { host?.terminal.scrollWheel(with: event) }
 
+    /// A text cursor over the text, an arrow over the bezel and margins, and
+    /// an arrow everywhere when the program has taken over the mouse.
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .iBeam)
+        addCursorRect(bounds, cursor: .arrow)
+        if let host, !host.programUsesMouse {
+            addCursorRect(host.convert(host.terminal.frame, to: self), cursor: .iBeam)
+        }
     }
 }
 
@@ -125,6 +131,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private let startTime = CACurrentMediaTime()
     private var occlusionObserver: NSObjectProtocol?
     private var framesDrawn = 0
+    private var lastProgramUsesMouse = false
     private var debugSnapshotWritten = false
 
     /// Text size, in points, at the Qt app's default font scaling (1.0).
@@ -141,7 +148,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
 
-        terminal.optionAsMetaKey = true
+        terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         terminal.installSecurityPolicy()
         addSubview(terminal)
 
@@ -182,6 +189,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     // MARK: Appearance
 
     func update(profile: Profile, effectsEnabled: Bool, zoom: Double) {
+        terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         self.profile = profile
         self.effectsEnabled = effectsEnabled
         self.zoom = zoom
@@ -189,6 +197,12 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     }
 
     private var showsEffects: Bool { effectsEnabled && renderer != nil }
+
+    /// Whether the program in the terminal is receiving mouse events
+    /// (mouse reporting), in which case the pointer is an arrow.
+    var programUsesMouse: Bool {
+        terminal.terminal.mouseMode != .off
+    }
 
     private func applyAppearance() {
         fontEntry = profile.fontSource == 0 ? FontLibrary.shared.entry(for: profile.fontName) : nil
@@ -237,6 +251,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         overlay.frame = bounds
         let margin = showsEffects ? profile.marginPoints : 4
         terminal.frame = bounds.insetBy(dx: min(margin, bounds.width / 4), dy: min(margin, bounds.height / 4))
+        window?.invalidateCursorRects(for: overlay)
         contentDirty = true
     }
 
@@ -275,6 +290,10 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         guard let renderer, let drawable = view.currentDrawable else { return }
+        if programUsesMouse != lastProgramUsesMouse {
+            lastProgramUsesMouse = programUsesMouse
+            window?.invalidateCursorRects(for: overlay)
+        }
         let now = CACurrentMediaTime()
         // Recapture on change, and periodically for the blinking cursor.
         if contentDirty || now - lastCapture > 0.5 {

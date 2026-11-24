@@ -145,6 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         SecureKeyboardEntry.shared.appWillResignActive()
     }
 
+    @MainActor @objc func showSettings(_ sender: Any?) {
+        SettingsWindowController.shared.show()
+    }
+
     @MainActor @objc func toggleSecureKeyboardEntry(_ sender: Any?) {
         SecureKeyboardEntry.shared.isEnabled.toggle()
     }
@@ -243,6 +247,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
         let app = submenu(in: main, title: "Cool Retro Term")
         app.addItem(item("About Cool Retro Term", #selector(showAbout(_:))))
+        app.addItem(.separator())
+        app.addItem(item("Settings…", #selector(showSettings(_:)), ","))
         app.addItem(.separator())
         app.addItem(item("Secure Keyboard Entry", #selector(toggleSecureKeyboardEntry(_:))))
         app.addItem(.separator())

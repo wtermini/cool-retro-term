@@ -228,6 +228,10 @@ final class TabBarView: NSView, NSTextFieldDelegate {
 
     // MARK: Mouse
 
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .arrow)
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)

@@ -85,6 +85,19 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 
 ## Using it
 
+- **Settings** (Cool Retro Term ▸ Settings…, Cmd-Comma) has three panes:
+  - *General*: Option as Meta, the Shift-/Control-Return new line keys,
+    Secure Keyboard Entry, tab bar options (always show it, show it in full
+    screen) and the custom shell command.
+  - *Appearance*: profile, font (bundled retro fonts or any monospaced font
+    on your Mac), text size, colours, contrast, brightness and saturation;
+    save the result as a profile, or delete a custom one.
+  - *Effects*: rasterization, bloom, burn-in, noise, jitter, glowing line,
+    curvature, flicker, sync, RGB shift and the frame.
+
+  Changes apply to every window as you make them and are shared with the Qt
+  app, as its own settings dialog's are.
+
 - **View ▸ Profile** switches between the built-in profiles and your custom
   profiles from the Qt app. The choice is saved to the shared settings and
   applies to every window.
@@ -188,8 +201,6 @@ THIRD_PARTY_NOTICES.md notes where their terms come from.
 
 ## Not done yet
 
-- A settings window for editing profiles and individual effects. For now, edit
-  them in the Qt app; this app picks up the changes.
 - Line spacing and font width from the profiles (SwiftTerm doesn't support them).
 - Window opacity.
 - A confirmation before closing a window with a running process.

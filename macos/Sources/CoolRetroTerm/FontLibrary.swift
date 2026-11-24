@@ -59,6 +59,19 @@ final class FontLibrary {
 
     func entry(for id: String) -> BundledFont? { fonts[id] }
 
+    /// The bundled retro fonts, by display name.
+    var bundledFonts: [BundledFont] {
+        fonts.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Monospaced font families installed on the system.
+    var systemMonospacedFamilies: [String] {
+        let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []
+        let families = Set(names.compactMap { NSFont(name: $0, size: 12)?.familyName })
+            .filter { !$0.hasPrefix(".") }
+        return families.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     /// The font for a profile: a bundled font id, or (fontSource 1) the
     /// family name of a font installed on the system.
     func font(for profile: Profile, pointSize: CGFloat) -> NSFont {

@@ -93,6 +93,38 @@ struct Profile: Equatable {
         if let b = json["blinkingCursor"] as? Bool { blinkingCursor = b }
     }
 
+    /// The profile in the Qt app's format, including any keys this app
+    /// doesn't use (kept from the original JSON).
+    var qtJSON: [String: Any] {
+        var j = json
+        j["fontName"] = fontName
+        j["fontSource"] = fontSource
+        j["fontColor"] = fontColor
+        j["backgroundColor"] = backgroundColor
+        j["frameColor"] = frameColor
+        j["ambientLight"] = ambientLight
+        j["bloom"] = bloom
+        j["brightness"] = brightness
+        j["burnIn"] = burnIn
+        j["chromaColor"] = chromaColor
+        j["contrast"] = contrast
+        j["flickering"] = flickering
+        j["frameShininess"] = frameShininess
+        j["frameSize"] = frameSize
+        j["glowingLine"] = glowingLine
+        j["horizontalSync"] = horizontalSync
+        j["jitter"] = jitter
+        j["margin"] = margin
+        j["rasterization"] = rasterization
+        j["rgbShift"] = rgbShift
+        j["saturationColor"] = saturationColor
+        j["screenCurvature"] = screenCurvature
+        j["screenRadius"] = screenRadius
+        j["staticNoise"] = staticNoise
+        j["blinkingCursor"] = blinkingCursor
+        return j
+    }
+
     /// Whether two profiles look the same (ignoring the name).
     func sameSettings(as other: Profile) -> Bool {
         var a = self, b = other
@@ -132,6 +164,8 @@ private func parseHex(_ string: String) -> RGB {
 }
 
 extension Profile {
+    static func parseHexColor(_ string: String) -> RGB { parseHex(string) }
+
     /// Text colour after saturation and contrast are applied.
     var effectiveFontColor: RGB {
         let k = Float(0.7 + contrast * 0.3)
@@ -213,6 +247,7 @@ final class ProfileStore {
 
     /// Re-reads the Qt app's settings, e.g. after it was changed there.
     func reload(notifying: Bool = true) {
+        flushPendingWrite()
         let previous = (current, zoom, customProfiles.map(\.name))
 
         customProfiles = (qt.jsonArray(for: "_CUSTOM_PROFILES") ?? []).compactMap { entry in
@@ -265,6 +300,102 @@ final class ProfileStore {
         settings["fontScaling"] = zoom
         qt.setJSON(settings, for: "_CURRENT_SETTINGS")
         notify()
+    }
+
+    // MARK: Editing (Settings window)
+
+    private var pendingWrite: DispatchWorkItem?
+
+    /// Changes the current profile, as the Qt app's settings dialog does. The
+    /// result is named after a saved profile if it matches one, and written
+    /// to the shared settings shortly after the last change.
+    func updateCurrent(_ change: (inout Profile) -> Void) {
+        var profile = current
+        change(&profile)
+        profile.json = profile.qtJSON
+        profile.name = profiles.first { $0.sameSettings(as: profile) }?.name ?? ""
+        current = profile
+
+        pendingWrite?.cancel()
+        let write = DispatchWorkItem { [weak self] in self?.flushPendingWrite(force: true) }
+        pendingWrite = write
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: write)
+        notify()
+    }
+
+    private func flushPendingWrite(force: Bool = false) {
+        guard force || pendingWrite != nil else { return }
+        pendingWrite?.cancel()
+        pendingWrite = nil
+        qt.setJSON(current.json, for: "_CURRENT_PROFILE")
+    }
+
+    /// Saves the current settings as a custom profile (shared with the Qt app).
+    func saveCurrent(as name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !builtins.contains(where: { $0.name == trimmed }),
+              let data = try? JSONSerialization.data(withJSONObject: current.qtJSON, options: [.sortedKeys]),
+              let objString = String(data: data, encoding: .utf8) else { return }
+        var list = qt.jsonArray(for: "_CUSTOM_PROFILES") ?? []
+        list.removeAll { ($0["text"] as? String) == trimmed }
+        list.append(["text": trimmed, "obj_string": objString, "builtin": false])
+        qt.setJSON(list, for: "_CUSTOM_PROFILES")
+        flushPendingWrite(force: true)
+        reload()
+        notify()
+    }
+
+    func deleteCustomProfile(_ name: String) {
+        var list = qt.jsonArray(for: "_CUSTOM_PROFILES") ?? []
+        list.removeAll { ($0["text"] as? String) == name }
+        qt.setJSON(list, for: "_CUSTOM_PROFILES")
+        reload()
+        notify()
+    }
+
+    func isBuiltin(_ name: String) -> Bool { builtins.contains { $0.name == name } }
+
+    /// The Qt app's "custom command instead of the shell" setting.
+    var customCommandSetting: (enabled: Bool, command: String) {
+        let settings = qt.jsonObject(for: "_CURRENT_SETTINGS") ?? [:]
+        return (settings["useCustomCommand"] as? Bool ?? false, settings["customCommand"] as? String ?? "")
+    }
+
+    func setCustomCommand(enabled: Bool, command: String) {
+        var settings = qt.jsonObject(for: "_CURRENT_SETTINGS") ?? [:]
+        settings["useCustomCommand"] = enabled
+        settings["customCommand"] = command
+        qt.setJSON(settings, for: "_CURRENT_SETTINGS")
+        reload()
+    }
+
+    // MARK: This app's own preferences
+
+    private func bool(_ key: String, default value: Bool) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? value
+    }
+
+    private func store(_ key: String, _ value: Bool) {
+        UserDefaults.standard.set(value, forKey: key)
+        notify()
+    }
+
+    /// Option acts as Meta (Esc prefix) rather than typing special characters.
+    var optionAsMeta: Bool {
+        get { bool("optionAsMeta", default: true) }
+        set { store("optionAsMeta", newValue) }
+    }
+
+    /// Shift-Return and Control-Return insert a new line.
+    var newLineKeys: Bool {
+        get { bool("newLineKeys", default: true) }
+        set { store("newLineKeys", newValue) }
+    }
+
+    /// Keep the tab bar visible in full screen.
+    var tabBarInFullScreen: Bool {
+        get { bool("tabBarInFullScreen", default: true) }
+        set { store("tabBarInFullScreen", newValue) }
     }
 
     /// Show the tab bar even when a window has a single tab.

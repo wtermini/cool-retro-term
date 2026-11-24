@@ -193,6 +193,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
         tabBar.selectedIndex = selectedIndex
         tabBar.accentColor = NSColor(rgb: ProfileStore.shared.current.effectiveFontColor)
         tabBarAccessory.isHidden = sessions.count < 2 && !ProfileStore.shared.alwaysShowTabBar
+        // In full screen the title bar hides; this keeps the tabs visible.
+        tabBarAccessory.fullScreenMinHeight = ProfileStore.shared.tabBarInFullScreen ? TabBarView.height : 0
         if let session = currentSession {
             window?.title = session.title
             window?.representedURL = session.directory
