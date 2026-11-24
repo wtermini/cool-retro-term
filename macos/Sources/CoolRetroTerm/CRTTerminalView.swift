@@ -84,7 +84,14 @@ final class CRTOverlayView: MTKView {
     override func mouseDown(with event: NSEvent) { host?.forwardMouse(event) }
     override func mouseDragged(with event: NSEvent) { host?.forwardMouse(event) }
     override func mouseUp(with event: NSEvent) { host?.forwardMouse(event) }
-    override func rightMouseDown(with event: NSEvent) { host?.forwardMouse(event) }
+    override func rightMouseDown(with event: NSEvent) {
+        // Programs using the mouse get the click; otherwise show the menu.
+        if let host, !host.programUsesMouse, let menu = host.terminal.menu {
+            NSMenu.popUpContextMenu(menu, with: event, for: host.terminal)
+        } else {
+            host?.forwardMouse(event)
+        }
+    }
     override func rightMouseDragged(with event: NSEvent) { host?.forwardMouse(event) }
     override func rightMouseUp(with event: NSEvent) { host?.forwardMouse(event) }
     override func otherMouseDown(with event: NSEvent) { host?.forwardMouse(event) }
@@ -132,6 +139,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private var occlusionObserver: NSObjectProtocol?
     private var framesDrawn = 0
     private var lastProgramUsesMouse = false
+    private var lastRender: CFTimeInterval = 0
+    private var cursorBlinkVisible = true
     private var debugSnapshotWritten = false
 
     /// Text size, in points, at the Qt app's default font scaling (1.0).
@@ -150,6 +159,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         terminal.installSecurityPolicy()
+        terminal.menu = (NSApp.delegate as? AppDelegate)?.makeContextMenu()
         addSubview(terminal)
 
         overlay.host = self
@@ -157,6 +167,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         overlay.colorPixelFormat = .bgra8Unorm
         overlay.framebufferOnly = true
         overlay.preferredFramesPerSecond = 60
+        overlay.autoResizeDrawable = false
         overlay.enableSetNeedsDisplay = false
         addSubview(overlay)
 
@@ -206,7 +217,24 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     private func applyAppearance() {
         fontEntry = profile.fontSource == 0 ? FontLibrary.shared.entry(for: profile.fontName) : nil
-        terminal.font = FontLibrary.shared.font(for: profile, pointSize: fontSize)
+        var font = FontLibrary.shared.font(for: profile, pointSize: fontSize)
+        // Font width stretches the glyphs (and so the cells) horizontally.
+        if abs(profile.fontWidth - 1) > 0.001 {
+            let matrix = AffineTransform(scaleByX: CGFloat(min(max(profile.fontWidth, 0.5), 1.5)), byY: 1)
+            font = NSFont(descriptor: font.fontDescriptor.withMatrix(matrix), size: fontSize) ?? font
+        }
+        if terminal.font != font { terminal.font = font }
+        let spacing = 1 + CGFloat(min(max(profile.lineSpacing, 0), 1))
+        if abs(terminal.lineSpacing - spacing) > 0.001 { terminal.lineSpacing = spacing }
+
+        // With effects on, the cursor is blinked when capturing (the caret's
+        // own animation isn't captured); with them off, SwiftTerm blinks it.
+        let style: CursorStyle = profile.blinkingCursor && !showsEffects ? .blinkBlock : .steadyBlock
+        terminal.terminal.setCursorStyle(style)
+
+        let store = ProfileStore.shared
+        renderer?.bloomQuality = store.bloomQuality
+        renderer?.burnInQuality = store.burnInQuality
 
         if showsEffects {
             // The shaders map brightness to the profile's colours.
@@ -228,6 +256,46 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         contentDirty = true
     }
 
+    // MARK: Size overlay
+
+    private var sizeLabel: NSTextField?
+    private var sizeLabelHide: DispatchWorkItem?
+    private var knownSize: (cols: Int, rows: Int)?
+
+    /// Shows "cols × rows" in the middle of the screen briefly after the
+    /// terminal is resized, as the Qt app does.
+    func terminalSizeChanged(cols: Int, rows: Int) {
+        defer { knownSize = (cols, rows) }
+        guard let known = knownSize, known.cols != cols || known.rows != rows,
+              ProfileStore.shared.showTerminalSize else { return }
+
+        let label = sizeLabel ?? {
+            let field = NSTextField(labelWithString: "")
+            field.font = NSFont.monospacedDigitSystemFont(ofSize: 22, weight: .semibold)
+            field.textColor = .white
+            field.alignment = .center
+            field.wantsLayer = true
+            field.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+            field.layer?.cornerRadius = 8
+            addSubview(field)
+            sizeLabel = field
+            return field
+        }()
+        label.stringValue = "  \(cols) × \(rows)  "
+        label.sizeToFit()
+        label.frame = NSRect(x: (bounds.width - label.frame.width) / 2, y: (bounds.height - label.frame.height - 12) / 2,
+                             width: label.frame.width, height: label.frame.height + 12)
+        label.alphaValue = 1
+        label.isHidden = false
+
+        sizeLabelHide?.cancel()
+        let hide = DispatchWorkItem { [weak label] in
+            NSAnimationContext.runAnimationGroup { $0.duration = 0.3; label?.animator().alphaValue = 0 }
+        }
+        sizeLabelHide = hide
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: hide)
+    }
+
     private var fontSize: CGFloat { Self.baseFontSize * CGFloat(zoom) }
 
     /// Pixels per point used when capturing the terminal. Bitmap-style fonts
@@ -247,8 +315,17 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         layoutSubviewsNow()
     }
 
+    /// The effects render at the display's resolution times the texture
+    /// quality setting (the Qt app's window scaling).
+    private func updateDrawableSize() {
+        let scale = (window?.backingScaleFactor ?? 2) * CGFloat(ProfileStore.shared.windowScaling)
+        let size = CGSize(width: max(bounds.width * scale, 1).rounded(), height: max(bounds.height * scale, 1).rounded())
+        if overlay.drawableSize != size { overlay.drawableSize = size }
+    }
+
     private func layoutSubviewsNow() {
         overlay.frame = bounds
+        updateDrawableSize()
         let margin = showsEffects ? profile.marginPoints : 4
         terminal.frame = bounds.insetBy(dx: min(margin, bounds.width / 4), dy: min(margin, bounds.height / 4))
         window?.invalidateCursorRects(for: overlay)
@@ -272,6 +349,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
+        updateDrawableSize()
         contentDirty = true
     }
 
@@ -295,7 +373,26 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             window?.invalidateCursorRects(for: overlay)
         }
         let now = CACurrentMediaTime()
-        // Recapture on change, and periodically for the blinking cursor.
+
+        // Blink the cursor in the captured image (about twice a second).
+        if profile.blinkingCursor {
+            let phase = Int(now / 0.53) % 2 == 0
+            if phase != cursorBlinkVisible {
+                cursorBlinkVisible = phase
+                contentDirty = true
+            }
+        } else if !cursorBlinkVisible {
+            cursorBlinkVisible = true
+            contentDirty = true
+        }
+
+        // The effects animate at the Qt app's "effects FPS" (60 / frame skip),
+        // but changes to the text are drawn straight away.
+        let frameInterval = Double(ProfileStore.shared.effectsFrameSkip) / 60
+        if !contentDirty && now - lastRender < frameInterval - 0.002 { return }
+        lastRender = now
+
+        // Recapture on change, and periodically in case something was missed.
         if contentDirty || now - lastCapture > 0.5 {
             captureTerminal(into: renderer)
             lastCapture = now
@@ -305,7 +402,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         renderer.render(to: drawable, uniforms: uniforms)
 
         framesDrawn += 1
-        if framesDrawn >= 240, !debugSnapshotWritten {
+        if now - startTime > 4, !debugSnapshotWritten {
             debugSnapshotWritten = true
             writeDebugSnapshot(renderer: renderer, uniforms: uniforms, size: view.drawableSize)
         }
@@ -352,11 +449,15 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         // Leave SwiftTerm's scroll bar out of the CRT image; it's still
         // there for the mouse, just not drawn on the "glass".
-        let scrollers = terminal.subviews.filter { $0 is NSScroller && !$0.isHidden }
+        var hidden = terminal.subviews.filter { $0 is NSScroller && !$0.isHidden }
+        // In the "off" half of a cursor blink, leave the caret out too.
+        if !cursorBlinkVisible {
+            hidden += terminal.subviews.filter { String(describing: type(of: $0)) == "CaretView" && !$0.isHidden }
+        }
         capturing = true
-        scrollers.forEach { $0.isHidden = true }
+        hidden.forEach { $0.isHidden = true }
         terminal.cacheDisplay(in: terminal.bounds, to: snapshot)
-        scrollers.forEach { $0.isHidden = false }
+        hidden.forEach { $0.isHidden = false }
         capturing = false
 
         renderer.updateContent(bytes: data, width: width, height: height, bytesPerRow: snapshot.bytesPerRow)

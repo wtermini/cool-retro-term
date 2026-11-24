@@ -82,12 +82,16 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
 
     /// Starts the user's login shell in their home directory, or the custom
     /// command set in the Qt app's settings.
-    func start() {
+    /// - Parameters:
+    ///   - command: a program and arguments to run instead (the -e option).
+    ///   - directory: the starting directory (the --workdir option).
+    func start(command explicitCommand: [String]? = nil, directory: String? = nil) {
         let shell = Self.loginShell
         var executable = shell
         var arguments: [String] = []
         var execName: String? = "-" + (shell as NSString).lastPathComponent
-        if let command = ProfileStore.shared.customCommand, let program = Self.resolve(command[0]) {
+        if let command = explicitCommand ?? ProfileStore.shared.customCommand, !command.isEmpty,
+           let program = Self.resolve(command[0]) {
             executable = program
             arguments = Array(command.dropFirst())
             execName = nil
@@ -110,7 +114,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
             args: arguments,
             environment: environment.map { "\($0.key)=\($0.value)" },
             execName: execName,
-            currentDirectory: NSHomeDirectory())
+            currentDirectory: directory.map { ($0 as NSString).expandingTildeInPath } ?? NSHomeDirectory())
 
         // Debug aid for CI screenshots: type a command once the shell is up.
         if let command = ProcessInfo.processInfo.environment["CRT_SNAPSHOT_COMMAND"] {
@@ -191,7 +195,11 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     // SwiftTerm's delegate protocol isn't actor-isolated, so these hop to the
     // main actor.
 
-    nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
+    nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
+        Task { @MainActor [weak self] in
+            self?.crtView.terminalSizeChanged(cols: newCols, rows: newRows)
+        }
+    }
 
     nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         Task { @MainActor [weak self] in

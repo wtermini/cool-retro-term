@@ -53,6 +53,12 @@ struct Profile: Equatable {
     var screenRadius: Double = 0.2
     var staticNoise: Double = 0.12
     var blinkingCursor: Bool = false
+    /// Horizontal stretch of the text, 0.5 to 1.5.
+    var fontWidth: Double = 1.0
+    /// Extra space between lines, as a fraction of the font's height.
+    var lineSpacing: Double = 0.1
+    /// 0 to 1; the window is shown at 70% to 100% opacity, as in the Qt app.
+    var windowOpacity: Double = 1.0
 
     /// The profile as the Qt app stores it.
     var json: [String: Any] = [:]
@@ -88,6 +94,9 @@ struct Profile: Equatable {
         number("screenCurvature", &screenCurvature)
         number("screenRadius", &screenRadius)
         number("staticNoise", &staticNoise)
+        number("fontWidth", &fontWidth)
+        number("lineSpacing", &lineSpacing)
+        number("windowOpacity", &windowOpacity)
         if let n = json["rasterization"] as? NSNumber { rasterization = n.intValue }
         if let n = json["fontSource"] as? NSNumber { fontSource = n.intValue }
         if let b = json["blinkingCursor"] as? Bool { blinkingCursor = b }
@@ -122,6 +131,9 @@ struct Profile: Equatable {
         j["screenRadius"] = screenRadius
         j["staticNoise"] = staticNoise
         j["blinkingCursor"] = blinkingCursor
+        j["fontWidth"] = fontWidth
+        j["lineSpacing"] = lineSpacing
+        j["windowOpacity"] = windowOpacity
         return j
     }
 
@@ -145,7 +157,7 @@ struct Profile: Equatable {
     private var numbers: [Double] {
         [ambientLight, bloom, brightness, burnIn, chromaColor, contrast, flickering, frameShininess,
          frameSize, glowingLine, horizontalSync, jitter, margin, rgbShift, saturationColor,
-         screenCurvature, screenRadius, staticNoise].map { ($0 * 10000).rounded() / 10000 }
+         screenCurvature, screenRadius, staticNoise, fontWidth, lineSpacing, windowOpacity].map { ($0 * 10000).rounded() / 10000 }
     }
 }
 
@@ -227,6 +239,16 @@ final class ProfileStore {
     private(set) var zoom: Double = 1.0
     private(set) var customCommand: [String]?
 
+    /// --default-settings: start from the built-in defaults and don't save.
+    static var useDefaultSettings = false
+
+    /// The Qt app's app-wide settings (_CURRENT_SETTINGS), with its defaults.
+    private(set) var effectsFrameSkip = 3
+    private(set) var windowScaling = 1.0
+    private(set) var bloomQuality = 0.5
+    private(set) var burnInQuality = 0.5
+    private(set) var showTerminalSize = true
+
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []
         let loaded = exported.compactMap { object -> Profile? in
@@ -247,6 +269,10 @@ final class ProfileStore {
 
     /// Re-reads the Qt app's settings, e.g. after it was changed there.
     func reload(notifying: Bool = true) {
+        if Self.useDefaultSettings {
+            current = builtins[0]
+            return
+        }
         flushPendingWrite()
         let previous = (current, zoom, customProfiles.map(\.name))
 
@@ -273,6 +299,11 @@ final class ProfileStore {
         if let scaling = settings["fontScaling"] as? NSNumber {
             zoom = scaling.doubleValue
         }
+        if let n = settings["effectsFrameSkip"] as? NSNumber { effectsFrameSkip = min(max(n.intValue, 1), 5) }
+        if let n = settings["windowScaling"] as? NSNumber { windowScaling = min(max(n.doubleValue, 0.25), 1) }
+        if let n = settings["bloomQuality"] as? NSNumber { bloomQuality = min(max(n.doubleValue, 0.25), 1) }
+        if let n = settings["burnInQuality"] as? NSNumber { burnInQuality = min(max(n.doubleValue, 0.25), 1) }
+        if let b = settings["showTerminalSize"] as? Bool { showTerminalSize = b }
         if settings["useCustomCommand"] as? Bool == true,
            let command = settings["customCommand"] as? String {
             let arguments = tokenizeCommandLine(command)
@@ -289,17 +320,78 @@ final class ProfileStore {
     func select(_ name: String) {
         guard let profile = profiles.first(where: { $0.name == name }) else { return }
         current = profile
-        qt.setJSON(profile.json, for: "_CURRENT_PROFILE")
+        if !Self.useDefaultSettings {
+            qt.setJSON(profile.json, for: "_CURRENT_PROFILE")
+        }
         notify()
     }
 
     /// Text size, stored as the Qt app's fontScaling (0.25 to 2.5).
     func setZoom(_ value: Double) {
         zoom = min(max(value, 0.25), 2.5)
-        var settings = qt.jsonObject(for: "_CURRENT_SETTINGS") ?? [:]
-        settings["fontScaling"] = zoom
-        qt.setJSON(settings, for: "_CURRENT_SETTINGS")
+        writeAppSetting("fontScaling", zoom)
+    }
+
+    func setEffectsFrameSkip(_ value: Int) {
+        effectsFrameSkip = min(max(value, 1), 5)
+        writeAppSetting("effectsFrameSkip", effectsFrameSkip)
+    }
+
+    func setWindowScaling(_ value: Double) {
+        windowScaling = min(max(value, 0.25), 1)
+        writeAppSetting("windowScaling", windowScaling)
+    }
+
+    func setBloomQuality(_ value: Double) {
+        bloomQuality = min(max(value, 0.25), 1)
+        writeAppSetting("bloomQuality", bloomQuality)
+    }
+
+    func setBurnInQuality(_ value: Double) {
+        burnInQuality = min(max(value, 0.25), 1)
+        writeAppSetting("burnInQuality", burnInQuality)
+    }
+
+    func setShowTerminalSize(_ value: Bool) {
+        showTerminalSize = value
+        writeAppSetting("showTerminalSize", value)
+    }
+
+    private func writeAppSetting(_ key: String, _ value: Any) {
+        if !Self.useDefaultSettings {
+            var settings = qt.jsonObject(for: "_CURRENT_SETTINGS") ?? [:]
+            settings[key] = value
+            qt.setJSON(settings, for: "_CURRENT_SETTINGS")
+        }
         notify()
+    }
+
+    // MARK: Import and export (same file format as the Qt app)
+
+    /// Writes a profile as JSON with its name, as the Qt app's Export does.
+    func exportProfile(_ profile: Profile, to url: URL) throws {
+        var json = profile.qtJSON
+        json["name"] = profile.name.isEmpty ? "Custom" : profile.name
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: url, options: .atomic)
+    }
+
+    /// Reads a profile exported by either app and saves it as a custom
+    /// profile, then selects it. Returns its name.
+    @discardableResult
+    func importProfile(from url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        var name = (json["name"] as? String) ?? url.deletingPathExtension().lastPathComponent
+        json.removeValue(forKey: "name")
+        if isBuiltin(name) { name += " (imported)" }
+        current = Profile(name: "", json: json)
+        current.json = current.qtJSON
+        saveCurrent(as: name)
+        select(name)
+        return name
     }
 
     // MARK: Editing (Settings window)
@@ -327,7 +419,9 @@ final class ProfileStore {
         guard force || pendingWrite != nil else { return }
         pendingWrite?.cancel()
         pendingWrite = nil
-        qt.setJSON(current.json, for: "_CURRENT_PROFILE")
+        if !Self.useDefaultSettings {
+            qt.setJSON(current.json, for: "_CURRENT_PROFILE")
+        }
     }
 
     /// Saves the current settings as a custom profile (shared with the Qt app).

@@ -19,6 +19,71 @@
  */
 
 import AppKit
+import Foundation
+
+/// Command-line options, the same as the Qt app's (app/main.cpp).
+struct LaunchOptions {
+    var profile: String?
+    var workdir: String?
+    var command: [String]?
+    var fullscreen = false
+
+    static var current = LaunchOptions()
+
+    static let usage = """
+        Usage: CoolRetroTerm [--default-settings] [--workdir <dir>] [--program <prog>] \
+        [-p|--profile <prof>] [--fullscreen] [-h|--help]
+          --default-settings  Run cool-retro-term with the default settings
+          --workdir <dir>     Change working directory to 'dir'
+          --program <prog>    Run 'prog' instead of the shell
+          -e <cmd>            Command to execute. This option will catch all following arguments, so use it as the last option.
+          --fullscreen        Run cool-retro-term in fullscreen.
+          -p|--profile <prof> Run cool-retro-term with the given profile.
+          -h|--help           Print this help.
+          -v|--version        Print the version.
+        """
+
+    /// Parses the arguments; prints and exits for --help and --version.
+    static func parse(_ arguments: [String]) -> LaunchOptions {
+        var options = LaunchOptions()
+        var index = 1
+        func value() -> String? {
+            index += 1
+            return index < arguments.count ? arguments[index] : nil
+        }
+        while index < arguments.count {
+            switch arguments[index] {
+            case "-h", "--help":
+                print(usage)
+                exit(0)
+            case "-v", "--version":
+                let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
+                print("cool-retro-term \(version)")
+                exit(0)
+            case "--default-settings":
+                ProfileStore.useDefaultSettings = true
+            case "--workdir":
+                options.workdir = value()
+            case "-p", "--profile":
+                options.profile = value()
+            case "--program":
+                if let program = value() { options.command = [program] }
+            case "-e":
+                let rest = Array(arguments[(index + 1)...])
+                options.command = rest.isEmpty ? nil : rest
+                index = arguments.count
+            case "--fullscreen":
+                options.fullscreen = true
+            default:
+                break   // Including arguments macOS itself passes.
+            }
+            index += 1
+        }
+        return options
+    }
+}
+
+LaunchOptions.current = LaunchOptions.parse(CommandLine.arguments)
 
 let application = NSApplication.shared
 let appDelegate = AppDelegate()

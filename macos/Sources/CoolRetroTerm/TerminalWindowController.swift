@@ -85,7 +85,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
 
     /// Opens a new tab after the current one and starts its shell.
     @discardableResult
-    func addSession() -> TerminalSession {
+    func addSession(command: [String]? = nil, directory: String? = nil) -> TerminalSession {
         let session = TerminalSession(frame: container.bounds)
         session.onChange = { [weak self] in self?.refresh() }
         session.onExit = { [weak self, weak session] in
@@ -95,7 +95,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
         let index = sessions.isEmpty ? 0 : selectedIndex + 1
         sessions.insert(session, at: index)
         select(index)
-        session.start()
+        session.start(command: command, directory: directory)
         return session
     }
 
@@ -195,6 +195,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
         tabBarAccessory.isHidden = sessions.count < 2 && !ProfileStore.shared.alwaysShowTabBar
         // In full screen the title bar hides; this keeps the tabs visible.
         tabBarAccessory.fullScreenMinHeight = ProfileStore.shared.tabBarInFullScreen ? TabBarView.height : 0
+        // Window opacity, as in the Qt app: 70% to 100%.
+        let opacity = 0.7 + 0.3 * CGFloat(min(max(ProfileStore.shared.current.windowOpacity, 0), 1))
+        container.alphaValue = opacity
+        window?.isOpaque = opacity >= 0.999
+        window?.backgroundColor = opacity >= 0.999 ? .black : NSColor.black.withAlphaComponent(opacity)
+
         if let session = currentSession {
             window?.title = session.title
             window?.representedURL = session.directory

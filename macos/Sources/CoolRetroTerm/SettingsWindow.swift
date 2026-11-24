@@ -20,6 +20,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The Settings window (Cool Retro Term ▸ Settings…, Cmd-Comma).
 ///
@@ -88,6 +89,55 @@ final class SettingsModel: ObservableObject {
                 let hex = Self.hex(NSColor(value))
                 ProfileStore.shared.updateCurrent { $0[keyPath: keyPath] = hex }
             })
+    }
+
+    func flag(_ keyPath: WritableKeyPath<Profile, Bool>) -> Binding<Bool> {
+        Binding(get: { ProfileStore.shared.current[keyPath: keyPath] },
+                set: { value in ProfileStore.shared.updateCurrent { $0[keyPath: keyPath] = value } })
+    }
+
+    // The Qt app's performance settings.
+    var effectsFrameSkip: Binding<Int> {
+        Binding(get: { ProfileStore.shared.effectsFrameSkip }, set: { ProfileStore.shared.setEffectsFrameSkip($0) })
+    }
+    var windowScaling: Binding<Double> {
+        Binding(get: { ProfileStore.shared.windowScaling }, set: { ProfileStore.shared.setWindowScaling($0) })
+    }
+    var bloomQuality: Binding<Double> {
+        Binding(get: { ProfileStore.shared.bloomQuality }, set: { ProfileStore.shared.setBloomQuality($0) })
+    }
+    var burnInQuality: Binding<Double> {
+        Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var showTerminalSize: Binding<Bool> {
+        Binding(get: { ProfileStore.shared.showTerminalSize }, set: { ProfileStore.shared.setShowTerminalSize($0) })
+    }
+
+    // Import and export, with the Qt app's file format.
+    func importProfile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a profile exported from Cool Retro Term."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ProfileStore.shared.importProfile(from: url)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    func exportProfile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        let name = ProfileStore.shared.current.name
+        panel.nameFieldStringValue = (name.isEmpty ? "Custom" : name) + ".json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ProfileStore.shared.exportProfile(ProfileStore.shared.current, to: url)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     var rasterization: Binding<Int> {
@@ -216,9 +266,27 @@ private struct GeneralSettings: View {
                 Text("Secure Keyboard Entry stops other apps from reading what you type while this app is in front.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Tabs") {
+            Section("Window") {
                 Toggle("Always show the tab bar", isOn: model.alwaysShowTabBar)
                 Toggle("Show the tab bar in full screen", isOn: model.tabBarInFullScreen)
+                Toggle("Show the terminal size when resizing", isOn: model.showTerminalSize)
+            }
+            Section {
+                Picker("Effects frame rate", selection: model.effectsFrameSkip) {
+                    Text("60 fps").tag(1)
+                    Text("30 fps").tag(2)
+                    Text("20 fps").tag(3)
+                    Text("15 fps").tag(4)
+                    Text("12 fps").tag(5)
+                }
+                LabeledSlider("Texture quality", value: model.windowScaling, range: 0.25...1)
+                LabeledSlider("Bloom quality", value: model.bloomQuality, range: 0.25...1)
+                LabeledSlider("Burn-in quality", value: model.burnInQuality, range: 0.25...1)
+            } header: {
+                Text("Performance")
+            } footer: {
+                Text("Lower values use less GPU and battery. Typing is always shown straight away.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Shell") {
                 Toggle("Run a custom command instead of the login shell", isOn: model.customCommandEnabled)
@@ -258,6 +326,8 @@ private struct AppearanceSettings: View {
                     Button("Delete Profile") { model.deleteCurrentProfile() }
                         .disabled(!model.canDeleteCurrent)
                     Spacer()
+                    Button("Import…") { model.importProfile() }
+                    Button("Export…") { model.exportProfile() }
                 }
                 Toggle("CRT effects", isOn: model.effectsEnabled)
             } footer: {
@@ -276,6 +346,9 @@ private struct AppearanceSettings: View {
                     }
                 }
                 LabeledSlider("Size", value: model.zoom, range: 0.25...2.5)
+                LabeledSlider("Width", value: model.number(\.fontWidth), range: 0.5...1.5)
+                LabeledSlider("Line spacing", value: model.number(\.lineSpacing))
+                Toggle("Blinking cursor", isOn: model.flag(\.blinkingCursor))
             }
 
             Section("Colours") {
@@ -286,6 +359,7 @@ private struct AppearanceSettings: View {
                 LabeledSlider("Brightness", value: model.number(\.brightness))
                 LabeledSlider("Saturation", value: model.number(\.saturationColor))
                 LabeledSlider("Colour", value: model.number(\.chromaColor))
+                LabeledSlider("Opacity", value: model.number(\.windowOpacity))
             }
         }
         .formStyle(.grouped)

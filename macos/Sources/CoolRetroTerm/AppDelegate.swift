@@ -9,7 +9,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         _ = FontLibrary.shared
         NSApp.mainMenu = buildMainMenu()
         installTabShortcuts()
-        openWindow()
+        let options = LaunchOptions.current
+        if let name = options.profile {
+            if ProfileStore.shared.profiles.contains(where: { $0.name == name }) {
+                ProfileStore.shared.select(name)
+            } else {
+                FileHandle.standardError.write(Data("cool-retro-term: no profile named \"\(name)\"\n".utf8))
+            }
+        }
+        let controller = openWindow(command: options.command, directory: options.workdir)
+        if options.fullscreen {
+            controller.window?.toggleFullScreen(nil)
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -24,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     // MARK: Windows and tabs
 
     @discardableResult
-    private func openWindow() -> TerminalWindowController {
+    private func openWindow(command: [String]? = nil, directory: String? = nil) -> TerminalWindowController {
         let controller = TerminalWindowController()
         controller.onClose = { [weak self] closed in
             self?.controllers.removeAll { $0 === closed }
@@ -40,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
-        controller.addSession()
+        controller.addSession(command: command, directory: directory)
         return controller
     }
 
@@ -238,6 +249,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let url = URL(string: "https://github.com/Swordfish90/cool-retro-term") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    // MARK: Context menu
+
+    /// The terminal's right-click menu, like the Qt app's.
+    func makeContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "New Tab", action: #selector(newTab(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "New Window", action: #selector(newWindow(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        let profiles = NSMenu(title: "Profile")
+        profiles.delegate = self
+        menu.addItem(withTitle: "Profile", action: nil, keyEquivalent: "").submenu = profiles
+        menu.addItem(withTitle: "CRT Effects", action: #selector(toggleEffects(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "About Cool Retro Term", action: #selector(showAbout(_:)), keyEquivalent: "")
+        return menu
     }
 
     // MARK: Menu bar

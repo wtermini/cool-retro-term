@@ -91,6 +91,15 @@ final class CRTRenderer {
 
     private static let workingFormat = MTLPixelFormat.rgba16Float
 
+    /// Resolution of the bloom blur relative to the screen (Qt: bloom quality).
+    var bloomQuality: Double = 0.5 {
+        didSet { if bloomQuality != oldValue { screenTexture = nil } }
+    }
+    /// Resolution of the burn-in buffer relative to the text (Qt: burn-in quality).
+    var burnInQuality: Double = 0.5 {
+        didSet { if burnInQuality != oldValue { contentTexture = nil } }
+    }
+
     init(device: MTLDevice, pixelFormat: MTLPixelFormat) throws {
         self.device = device
         guard let queue = device.makeCommandQueue() else {
@@ -125,7 +134,10 @@ final class CRTRenderer {
                 pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false)
             descriptor.usage = .shaderRead
             contentTexture = device.makeTexture(descriptor: descriptor)
-            burnInTextures = (0..<2).compactMap { _ in makeRenderTarget(width: width, height: height) }
+            let scale = min(max(burnInQuality, 0.25), 1)
+            let burnInWidth = max(Int(Double(width) * scale), 1)
+            let burnInHeight = max(Int(Double(height) * scale), 1)
+            burnInTextures = (0..<2).compactMap { _ in makeRenderTarget(width: burnInWidth, height: burnInHeight) }
             burnInNeedsClear = true
         }
         contentTexture?.replace(region: MTLRegionMake2D(0, 0, width, height),
@@ -270,8 +282,10 @@ final class CRTRenderer {
     private func ensureScreenTargets(width: Int, height: Int) {
         if screenTexture?.width != width || screenTexture?.height != height {
             screenTexture = makeRenderTarget(width: width, height: height)
+            // Bloom quality 0.5 is a quarter-resolution blur, 1.0 half-resolution.
+            let scale = min(max(bloomQuality, 0.25), 1) / 2
             bloomTextures = (0..<2).compactMap { _ in
-                makeRenderTarget(width: max(width / 4, 1), height: max(height / 4, 1))
+                makeRenderTarget(width: max(Int(Double(width) * scale), 1), height: max(Int(Double(height) * scale), 1))
             }
         }
     }

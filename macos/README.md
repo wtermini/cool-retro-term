@@ -199,8 +199,27 @@ Three font folders inherited from the Qt app (Cozette, Fixedsys Excelsior and
 Atari Classic, whose terms are in a PDF) don't include a plain license file;
 THIRD_PARTY_NOTICES.md notes where their terms come from.
 
+## Parity with the Qt app
+
+Everything in the Qt app's settings dialog, menus and command line has a
+counterpart here:
+
+| Qt app | Native app |
+|---|---|
+| Profiles: load, save, remove, import, export | Settings ▸ Appearance (same JSON file format) and View ▸ Profile |
+| Brightness, contrast, margin, radius, frame size, opacity | Settings ▸ Appearance / Effects |
+| Font source (bundled or system), name, scaling, width, line spacing | Settings ▸ Appearance ▸ Text |
+| Font, background and frame colours; chroma and saturation | Settings ▸ Appearance ▸ Colours |
+| Every effect (bloom, burn-in, noise, jitter, glow line, curvature, ambient light, flicker, sync, RGB shift, frame shininess, rasterization) | Settings ▸ Effects |
+| Custom command instead of the shell; blinking cursor | Settings ▸ General / Appearance |
+| Effects FPS, texture, bloom and burn-in quality | Settings ▸ General ▸ Performance |
+| Terminal size shown while resizing | Same, can be turned off in Settings ▸ General |
+| Right-click menu (copy, paste, new tab/window, profiles, settings, full screen, about) | Same |
+| New window/tab, close tab, zoom in/out, Cmd-1…9, full screen | Same shortcuts |
+| `--default-settings`, `--workdir`, `-e`, `-p/--profile`, `--fullscreen`, `-h`, `-v` | Same options (run the binary inside the app bundle) |
+| Show menu bar | Not applicable on macOS (the menu bar is always there) |
+
 ## Not done yet
 
-- Line spacing and font width from the profiles (SwiftTerm doesn't support them).
-- Window opacity.
 - A confirmation before closing a window with a running process.
+- Tabs and their names and colours aren't restored after quitting.
