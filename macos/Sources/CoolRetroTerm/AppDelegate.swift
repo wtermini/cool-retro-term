@@ -4,6 +4,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var controllers: [TerminalWindowController] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Load settings and fonts before any window exists.
+        _ = ProfileStore.shared
         _ = FontLibrary.shared
         NSApp.mainMenu = buildMainMenu()
         installTabShortcuts()

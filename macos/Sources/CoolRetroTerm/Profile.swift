@@ -203,14 +203,16 @@ final class ProfileStore {
         }
         builtins = loaded.isEmpty ? [Profile(name: "Default Amber", json: [:])] : loaded
         current = builtins[0]
-        reload()
+        // No change notification here: observers would read
+        // ProfileStore.shared while it is still being created, which traps.
+        reload(notifying: false)
     }
 
     var profiles: [Profile] { builtins + customProfiles }
     var builtinProfiles: [Profile] { builtins }
 
     /// Re-reads the Qt app's settings, e.g. after it was changed there.
-    func reload() {
+    func reload(notifying: Bool = true) {
         let previous = (current, zoom, customProfiles.map(\.name))
 
         customProfiles = (qt.jsonArray(for: "_CUSTOM_PROFILES") ?? []).compactMap { entry in
@@ -244,7 +246,7 @@ final class ProfileStore {
             customCommand = nil
         }
 
-        if previous.0 != current || previous.1 != zoom || previous.2 != customProfiles.map(\.name) {
+        if notifying, previous.0 != current || previous.1 != zoom || previous.2 != customProfiles.map(\.name) {
             notify()
         }
     }
