@@ -22,22 +22,61 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The Settings window (Cool Retro Term ▸ Settings…, Cmd-Comma).
+/// The Settings window (Cool Retro Term ▸ Settings…, Cmd-Comma), laid out
+/// like the Mac's own apps: a toolbar of panes, the window titled after the
+/// open pane and sized to fit it, and the last pane remembered.
 ///
 /// Profile and effect changes edit the same shared settings as the Qt app's
 /// settings dialog and apply to every window as you make them.
 @MainActor
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     static let shared = SettingsWindowController()
 
+    private enum Pane: String, CaseIterable {
+        case general = "General"
+        case profiles = "Profiles"
+        case text = "Text"
+        case effects = "Effects"
+        case performance = "Performance"
+
+        var symbol: String {
+            switch self {
+            case .general: return "gearshape"
+            case .profiles: return "paintpalette"
+            case .text: return "textformat"
+            case .effects: return "tv"
+            case .performance: return "gauge.with.dots.needle.67percent"
+            }
+        }
+    }
+
+    private let tabs = NSTabViewController()
+    private let model = SettingsModel()
+
     private init() {
-        let hosting = NSHostingController(rootView: SettingsView(model: SettingsModel()))
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "Settings"
+        tabs.tabStyle = .toolbar
+        tabs.canPropagateSelectedChildViewControllerTitle = true
+
+        let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
+        window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
-        window.center()
         super.init(window: window)
+
+        for pane in Pane.allCases {
+            let hosting = NSHostingController(rootView: Self.view(for: pane, model: model))
+            hosting.sizingOptions = .preferredContentSize
+            hosting.title = pane.rawValue
+            let item = NSTabViewItem(viewController: hosting)
+            item.label = pane.rawValue
+            item.image = NSImage(systemSymbolName: pane.symbol, accessibilityDescription: pane.rawValue)
+            tabs.addTabViewItem(item)
+        }
+
+        let saved = UserDefaults.standard.string(forKey: "settingsPane")
+        tabs.selectedTabViewItemIndex = Pane.allCases.firstIndex { $0.rawValue == saved } ?? 0
+        window.delegate = self
+        window.center()
     }
 
     required init?(coder: NSCoder) {
@@ -47,6 +86,23 @@ final class SettingsWindowController: NSWindowController {
     func show() {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        let index = tabs.selectedTabViewItemIndex
+        if Pane.allCases.indices.contains(index) {
+            UserDefaults.standard.set(Pane.allCases[index].rawValue, forKey: "settingsPane")
+        }
+    }
+
+    private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
+        switch pane {
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 470))
+        case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 600))
+        case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 400))
+        case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 640))
+        case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 330))
+        }
     }
 }
 
@@ -236,23 +292,7 @@ final class SettingsModel: ObservableObject {
     }
 }
 
-// MARK: - Views
-
-struct SettingsView: View {
-    @ObservedObject var model: SettingsModel
-
-    var body: some View {
-        TabView {
-            GeneralSettings(model: model)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            AppearanceSettings(model: model)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
-            EffectsSettings(model: model)
-                .tabItem { Label("Effects", systemImage: "tv") }
-        }
-        .frame(width: 540, height: 620)
-    }
-}
+// MARK: - Panes
 
 private struct GeneralSettings: View {
     @ObservedObject var model: SettingsModel
@@ -272,26 +312,12 @@ private struct GeneralSettings: View {
                 Toggle("Show the terminal size when resizing", isOn: model.showTerminalSize)
             }
             Section {
-                Picker("Effects frame rate", selection: model.effectsFrameSkip) {
-                    Text("60 fps").tag(1)
-                    Text("30 fps").tag(2)
-                    Text("20 fps").tag(3)
-                    Text("15 fps").tag(4)
-                    Text("12 fps").tag(5)
-                }
-                LabeledSlider("Texture quality", value: model.windowScaling, range: 0.25...1)
-                LabeledSlider("Bloom quality", value: model.bloomQuality, range: 0.25...1)
-                LabeledSlider("Burn-in quality", value: model.burnInQuality, range: 0.25...1)
-            } header: {
-                Text("Performance")
-            } footer: {
-                Text("Lower values use less GPU and battery. Typing is always shown straight away.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Shell") {
                 Toggle("Run a custom command instead of the login shell", isOn: model.customCommandEnabled)
                 TextField("Command", text: model.customCommand)
                     .disabled(!model.customCommandEnabled.wrappedValue)
+            } header: {
+                Text("Shell")
+            } footer: {
                 Text("Shared with the Qt app. Applies to new tabs.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -300,10 +326,11 @@ private struct GeneralSettings: View {
     }
 }
 
-private struct AppearanceSettings: View {
+private struct ProfilesSettings: View {
     @ObservedObject var model: SettingsModel
     @State private var savingName = ""
     @State private var showingSave = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         Form {
@@ -319,46 +346,35 @@ private struct AppearanceSettings: View {
                     }
                 }
                 HStack {
-                    Button("Save as Profile…") {
+                    Button("Save as…") {
                         savingName = model.profile.name.isEmpty ? "" : model.profile.name
                         showingSave = true
                     }
-                    Button("Delete Profile") { model.deleteCurrentProfile() }
+                    Button("Delete…") { confirmingDelete = true }
                         .disabled(!model.canDeleteCurrent)
                     Spacer()
                     Button("Import…") { model.importProfile() }
                     Button("Export…") { model.exportProfile() }
                 }
                 Toggle("CRT effects", isOn: model.effectsEnabled)
+            } header: {
+                Text("Profile")
             } footer: {
-                Text("Profiles and changes here are shared with the Qt app.")
+                Text("Profiles and every change here are shared with the Qt app. Changing a setting turns the profile into \"Custom\" until you save it.")
                     .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section("Text") {
-                Picker("Font", selection: model.font) {
-                    ForEach(model.bundledFonts, id: \.id) { font in
-                        Text(font.name).tag("bundled:" + font.id)
-                    }
-                    Divider()
-                    ForEach(model.systemFonts, id: \.self) { family in
-                        Text(family).tag("system:" + family)
-                    }
-                }
-                LabeledSlider("Size", value: model.zoom, range: 0.25...2.5)
-                LabeledSlider("Width", value: model.number(\.fontWidth), range: 0.5...1.5)
-                LabeledSlider("Line spacing", value: model.number(\.lineSpacing))
-                Toggle("Blinking cursor", isOn: model.flag(\.blinkingCursor))
             }
 
             Section("Colours") {
                 ColorPicker("Text", selection: model.color(\.fontColor), supportsOpacity: false)
                 ColorPicker("Background", selection: model.color(\.backgroundColor), supportsOpacity: false)
                 ColorPicker("Frame", selection: model.color(\.frameColor), supportsOpacity: false)
-                LabeledSlider("Contrast", value: model.number(\.contrast))
-                LabeledSlider("Brightness", value: model.number(\.brightness))
-                LabeledSlider("Saturation", value: model.number(\.saturationColor))
                 LabeledSlider("Colour", value: model.number(\.chromaColor))
+                LabeledSlider("Saturation", value: model.number(\.saturationColor))
+            }
+
+            Section("Screen") {
+                LabeledSlider("Brightness", value: model.number(\.brightness))
+                LabeledSlider("Contrast", value: model.number(\.contrast))
                 LabeledSlider("Opacity", value: model.number(\.windowOpacity))
             }
         }
@@ -370,6 +386,66 @@ private struct AppearanceSettings: View {
         } message: {
             Text("Saving with the name of an existing custom profile replaces it.")
         }
+        .confirmationDialog("Delete the profile \"\(model.profile.name)\"?", isPresented: $confirmingDelete) {
+            Button("Delete", role: .destructive) { model.deleteCurrentProfile() }
+        } message: {
+            Text("It's also removed from the Qt app.")
+        }
+    }
+}
+
+private struct TextSettings: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Form {
+            Section("Font") {
+                Picker("Font", selection: model.font) {
+                    Section("Bundled") {
+                        ForEach(model.bundledFonts, id: \.id) { font in
+                            Text(font.name).tag("bundled:" + font.id)
+                        }
+                    }
+                    Section("System") {
+                        ForEach(model.systemFonts, id: \.self) { family in
+                            Text(family).tag("system:" + family)
+                        }
+                    }
+                }
+                LabeledSlider("Size", value: model.zoom, range: 0.25...2.5, percent: true)
+                LabeledSlider("Width", value: model.number(\.fontWidth), range: 0.5...1.5, percent: true)
+                LabeledSlider("Line spacing", value: model.number(\.lineSpacing), percent: true)
+            }
+            Section("Cursor") {
+                Toggle("Blinking cursor", isOn: model.flag(\.blinkingCursor))
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct PerformanceSettings: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Effects frame rate", selection: model.effectsFrameSkip) {
+                    Text("60 fps").tag(1)
+                    Text("30 fps").tag(2)
+                    Text("20 fps").tag(3)
+                    Text("15 fps").tag(4)
+                    Text("12 fps").tag(5)
+                }
+                LabeledSlider("Texture quality", value: model.windowScaling, range: 0.25...1, percent: true)
+                LabeledSlider("Bloom quality", value: model.bloomQuality, range: 0.25...1, percent: true)
+                LabeledSlider("Burn-in quality", value: model.burnInQuality, range: 0.25...1, percent: true)
+            } footer: {
+                Text("Lower values use less GPU and battery. What you type is always shown straight away; only the animation of the effects slows down. Shared with the Qt app.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -412,21 +488,23 @@ private struct LabeledSlider: View {
     let title: String
     let value: Binding<Double>
     let range: ClosedRange<Double>
+    let percent: Bool
 
-    init(_ title: String, value: Binding<Double>, range: ClosedRange<Double> = 0...1) {
+    init(_ title: String, value: Binding<Double>, range: ClosedRange<Double> = 0...1, percent: Bool = false) {
         self.title = title
         self.value = value
         self.range = range
+        self.percent = percent
     }
 
     var body: some View {
         LabeledContent(title) {
             HStack {
                 Slider(value: value, in: range)
-                Text(String(format: "%.2f", value.wrappedValue))
+                Text(percent ? "\(Int((value.wrappedValue * 100).rounded()))%" : String(format: "%.2f", value.wrappedValue))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(width: 36, alignment: .trailing)
+                    .frame(width: 44, alignment: .trailing)
             }
         }
     }

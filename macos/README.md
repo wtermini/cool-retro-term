@@ -85,15 +85,18 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 
 ## Using it
 
-- **Settings** (Cool Retro Term ▸ Settings…, Cmd-Comma) has three panes:
+- **Settings** (Cool Retro Term ▸ Settings…, Cmd-Comma, or right-click ▸
+  Settings…) is a standard Mac settings window with five panes:
   - *General*: Option as Meta, the Shift-/Control-Return new line keys,
-    Secure Keyboard Entry, tab bar options (always show it, show it in full
-    screen) and the custom shell command.
-  - *Appearance*: profile, font (bundled retro fonts or any monospaced font
-    on your Mac), text size, colours, contrast, brightness and saturation;
-    save the result as a profile, or delete a custom one.
+    Secure Keyboard Entry, tab bar and resize options, and the custom shell
+    command.
+  - *Profiles*: choose, save, delete, import and export profiles; turn the
+    CRT effects on or off; colours, brightness, contrast and opacity.
+  - *Text*: font (bundled retro fonts or any monospaced font on your Mac),
+    size, width, line spacing and the blinking cursor.
   - *Effects*: rasterization, bloom, burn-in, noise, jitter, glowing line,
     curvature, flicker, sync, RGB shift and the frame.
+  - *Performance*: effects frame rate and texture, bloom and burn-in quality.
 
   Changes apply to every window as you make them and are shared with the Qt
   app, as its own settings dialog's are.
