@@ -91,6 +91,11 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private var effectsEnabled: Bool
     private var zoom: Double
 
+    /// The window's tab colour, used to tint the bezel.
+    var accentColor: NSColor? {
+        didSet { contentDirty = true }
+    }
+
     private var snapshot: NSBitmapImageRep?
     private var contentDirty = true
     private var capturing = false
@@ -324,6 +329,11 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         u.fontColor = opaque(p.effectiveFontColor)
         u.backgroundColor = opaque(p.effectiveBackgroundColor)
         u.frameColor = opaque(p.effectiveFrameColor)
+        if let accent = accentColor?.usingColorSpace(.sRGB) {
+            let tint = RGB(Float(accent.redComponent), Float(accent.greenComponent), Float(accent.blueComponent))
+            let frame = p.effectiveFrameColor
+            u.frameColor = opaque(frame + (tint * 0.85 - frame) * 0.7)
+        }
 
         // Where the terminal sits on the screen, in UV space (origin top left).
         let content = terminal.frame

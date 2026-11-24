@@ -56,6 +56,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         newTab(sender)
     }
 
+    // MARK: Tab colour
+
+    private weak var colorPanelTarget: TerminalWindowController?
+
+    @MainActor private var frontController: TerminalWindowController? {
+        let window = NSApp.mainWindow ?? NSApp.keyWindow
+        return controllers.first { $0.window === window }
+    }
+
+    @MainActor @objc func chooseTabColor(_ sender: NSMenuItem) {
+        let name = sender.representedObject as? String
+        frontController?.setTabColor(name.flatMap(TabColorPalette.color(named:)), name: name)
+    }
+
+    @MainActor @objc func chooseCustomTabColor(_ sender: Any?) {
+        guard let controller = frontController else { return }
+        colorPanelTarget = controller
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = false
+        panel.color = controller.tabColor ?? .systemBlue
+        panel.setTarget(self)
+        panel.setAction(#selector(colorPanelChanged(_:)))
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @MainActor @objc func colorPanelChanged(_ sender: NSColorPanel) {
+        colorPanelTarget?.setTabColor(sender.color, name: "Custom")
+    }
+
     // MARK: Appearance
 
     @objc func selectProfile(_ sender: NSMenuItem) {
@@ -121,6 +150,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(selectProfile(_:)):
             let name = ProfileStore.shared.current.name
             menuItem.state = !name.isEmpty && (menuItem.representedObject as? String) == name ? .on : .off
+        case #selector(chooseTabColor(_:)):
+            menuItem.state = (menuItem.representedObject as? String) == frontController?.tabColorName ? .on : .off
+            return frontController != nil
+        case #selector(chooseCustomTabColor(_:)):
+            menuItem.state = frontController?.tabColorName == "Custom" ? .on : .off
+            return frontController != nil
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
         case #selector(toggleSecureKeyboardEntry(_:)):
@@ -184,6 +219,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let shell = submenu(in: main, title: "Shell")
         shell.addItem(item("New Window", #selector(newWindow(_:)), "n"))
         shell.addItem(item("New Tab", #selector(newTab(_:)), "t"))
+        shell.addItem(.separator())
+        let tabColors = NSMenu(title: "Tab Color")
+        let none = item("None", #selector(chooseTabColor(_:)))
+        tabColors.addItem(none)
+        tabColors.addItem(.separator())
+        for (name, color) in TabColorPalette.colors {
+            let entry = item(name, #selector(chooseTabColor(_:)))
+            entry.representedObject = name
+            entry.image = TabColorPalette.swatch(color)
+            tabColors.addItem(entry)
+        }
+        tabColors.addItem(.separator())
+        tabColors.addItem(item("Custom…", #selector(chooseCustomTabColor(_:))))
+        shell.addItem(withTitle: "Tab Color", action: nil, keyEquivalent: "").submenu = tabColors
         shell.addItem(.separator())
         shell.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
 

@@ -91,6 +91,18 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
+- **Shell ▸ Tab Color** gives the current tab a colour (or Custom… for any
+  colour). It shows as a dot and a coloured title in the tab, and tints the
+  CRT bezel, so it's visible even without a tab bar. Programs and shell
+  scripts can also set it with iTerm2's escape sequence, for example to turn
+  a tab red while you're on a production server:
+
+  ```sh
+  printf '\e]6;1;bg;red;brightness;220\a\e]6;1;bg;green;brightness;40\a\e]6;1;bg;blue;brightness;40\a'
+  printf '\e]6;1;bg;*;default\a'   # reset
+  ```
+
+  A colour picked from the menu always wins over one set by a program.
 
 ## How it works
 

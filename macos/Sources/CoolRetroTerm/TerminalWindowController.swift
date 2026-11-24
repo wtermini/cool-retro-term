@@ -25,6 +25,13 @@ import SwiftTerm
 final class TerminalWindowController: NSWindowController, NSWindowDelegate, LocalProcessTerminalViewDelegate {
     let crtView: CRTTerminalView
     var onClose: ((TerminalWindowController) -> Void)?
+
+    /// Tab colour picked from the menu (name from TabColorPalette, or "Custom").
+    private(set) var tabColorName: String?
+    private var userTabColor: NSColor?
+    /// Tab colour set by a program with the iTerm2 escape sequence.
+    private var programTabColor: NSColor?
+    private var programTabRGB: [Double] = [0, 0, 0]
     private var appearanceObserver: NSObjectProtocol?
 
     init() {
@@ -52,6 +59,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
 
         window.delegate = self
         crtView.terminal.processDelegate = self
+        crtView.terminal.terminal.registerOscHandler(code: 6) { [weak self] data in
+            guard let sequence = TabColorSequence(data) else { return }
+            Task { @MainActor [weak self] in self?.applyProgramTabColor(sequence) }
+        }
         appearanceObserver = NotificationCenter.default.addObserver(
             forName: .terminalAppearanceDidChange, object: nil, queue: .main
         ) { [weak self] _ in
@@ -142,6 +153,45 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         return "en_US.UTF-8"
     }
 
+    // MARK: Tab colour
+
+    var tabColor: NSColor? { userTabColor ?? programTabColor }
+
+    func setTabColor(_ color: NSColor?, name: String?) {
+        userTabColor = color
+        tabColorName = color == nil ? nil : name
+        updateTabAppearance()
+    }
+
+    private func applyProgramTabColor(_ sequence: TabColorSequence) {
+        switch sequence {
+        case .reset:
+            programTabRGB = [0, 0, 0]
+            programTabColor = nil
+        case .channel(let index, let value):
+            programTabRGB[index] = value
+            programTabColor = NSColor(srgbRed: programTabRGB[0], green: programTabRGB[1],
+                                      blue: programTabRGB[2], alpha: 1)
+        }
+        updateTabAppearance()
+    }
+
+    /// Shows the colour as a dot and coloured title in the tab, and as a
+    /// tint on the CRT bezel.
+    func updateTabAppearance() {
+        guard let window else { return }
+        if let color = tabColor {
+            window.tab.attributedTitle = NSAttributedString(
+                string: window.title,
+                attributes: [.foregroundColor: color, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)])
+            window.tab.accessoryView = TabColorDot(color: color)
+        } else {
+            window.tab.attributedTitle = nil
+            window.tab.accessoryView = nil
+        }
+        crtView.accentColor = tabColor
+    }
+
     // MARK: NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
@@ -159,6 +209,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
     nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         Task { @MainActor [weak self] in
             self?.window?.title = title.isEmpty ? "Cool Retro Term" : title
+            self?.updateTabAppearance()
         }
     }
 
