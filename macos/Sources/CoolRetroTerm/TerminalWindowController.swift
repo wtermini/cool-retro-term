@@ -91,6 +91,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         if environment["LANG"] == nil && environment["LC_ALL"] == nil && environment["LC_CTYPE"] == nil {
             environment["LANG"] = Self.utf8Locale
         }
+        // The CRT_* debug switches are for this app only; don't pass them on.
+        for key in environment.keys where key.hasPrefix("CRT_") {
+            environment.removeValue(forKey: key)
+        }
         crtView.terminal.startProcess(
             executable: executable,
             args: arguments,

@@ -75,6 +75,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// Pick up changes made in the Qt app while this one was in the background.
     func applicationDidBecomeActive(_ notification: Notification) {
         ProfileStore.shared.reload()
+        SecureKeyboardEntry.shared.appDidBecomeActive()
+    }
+
+    func applicationWillResignActive(_ notification: Notification) {
+        SecureKeyboardEntry.shared.appWillResignActive()
+    }
+
+    @objc func toggleSecureKeyboardEntry(_ sender: Any?) {
+        SecureKeyboardEntry.shared.isEnabled.toggle()
     }
 
     // MARK: NSMenuDelegate
@@ -114,6 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = !name.isEmpty && (menuItem.representedObject as? String) == name ? .on : .off
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
+        case #selector(toggleSecureKeyboardEntry(_:)):
+            menuItem.state = SecureKeyboardEntry.shared.isEnabled ? .on : .off
         default:
             break
         }
@@ -157,6 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
         let app = submenu(in: main, title: "Cool Retro Term")
         app.addItem(item("About Cool Retro Term", #selector(showAbout(_:))))
+        app.addItem(.separator())
+        app.addItem(item("Secure Keyboard Entry", #selector(toggleSecureKeyboardEntry(_:))))
         app.addItem(.separator())
         let services = NSMenu(title: "Services")
         app.addItem(withTitle: "Services", action: nil, keyEquivalent: "").submenu = services

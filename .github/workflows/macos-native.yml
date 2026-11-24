@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Show toolchain
         run: |
@@ -77,14 +77,14 @@ jobs:
             ditto -c -k --keepParent "macos/build/Cool Retro Term.app" Cool-Retro-Term-macOS.zip
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: Cool-Retro-Term-macOS
           path: Cool-Retro-Term-macOS.zip
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: screenshots

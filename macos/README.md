@@ -122,9 +122,13 @@ On top of SwiftTerm's defaults, this app:
 - **refuses clipboard reads** requested by programs (OSC 52), which would
   otherwise let any output silently read what you last copied. Programs can
   still *set* the clipboard, as vim and tmux do;
-- **checks Cmd-clicked links**: web and mail links open normally, documents
-  open in their app, applications and scripts are only shown in Finder, and
-  other kinds of links ask first and show where they really point;
+- **checks Cmd-clicked links**: web and mail links open normally, plain
+  documents (text, source code, images, PDFs, media) open in their app;
+  applications, scripts and other files are only shown in Finder; and other
+  kinds of links ask first and show where they really point;
+- offers **Secure Keyboard Entry** (in the app menu, as in Terminal.app),
+  which stops other apps from reading your keystrokes while this one is in
+  front;
 - runs your shell as you, with your normal environment and no extra
   privileges. Like any terminal, the app isn't sandboxed, since it has to be
   able to run anything you ask it to.

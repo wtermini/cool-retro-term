@@ -19,6 +19,7 @@
  */
 
 import AppKit
+import Carbon
 import SwiftTerm
 import UniformTypeIdentifiers
 
@@ -152,12 +153,17 @@ enum LinkOpener {
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return }
 
         let type = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType
+        // An allowlist of plain document types. XML and property lists are
+        // excluded on purpose: types such as Terminal settings files
+        // (.terminal) and configuration profiles are XML underneath and make
+        // their default app run commands or change system settings.
+        let allowed: [UTType] = [.plainText, .sourceCode, .json, .image, .pdf, .audiovisualContent]
+        let denied: [UTType] = [.script, .shellScript, .executable, .xml, .propertyList,
+                                .application, .bundle, .package]
         let isDocument = !isDirectory.boolValue
             && !FileManager.default.isExecutableFile(atPath: url.path)
-            && [UTType.text, .sourceCode, .image, .pdf, .audiovisualContent, .json, .xml]
-                .contains { type?.conforms(to: $0) == true }
-            && type?.conforms(to: .script) != true
-            && type?.conforms(to: .shellScript) != true
+            && allowed.contains { type?.conforms(to: $0) == true }
+            && !denied.contains { type?.conforms(to: $0) == true }
 
         if isDocument {
             NSWorkspace.shared.open(url)
@@ -184,5 +190,41 @@ enum LinkOpener {
         } else {
             handler(alert.runModal())
         }
+    }
+}
+
+/// Secure Keyboard Entry, as in Terminal.app: while this app is active,
+/// macOS stops other apps from reading keystrokes (keyloggers, or apps
+/// granted Input Monitoring), which protects passwords typed at prompts.
+/// It's applied only while this app is frontmost, as Terminal does, and
+/// the choice is remembered.
+@MainActor
+final class SecureKeyboardEntry {
+    static let shared = SecureKeyboardEntry()
+
+    private var active = false
+
+    var isEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "secureKeyboardEntry") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "secureKeyboardEntry")
+            update(appIsActive: NSApp.isActive)
+        }
+    }
+
+    func appDidBecomeActive() { update(appIsActive: true) }
+    func appWillResignActive() { update(appIsActive: false) }
+
+    /// EnableSecureEventInput() and DisableSecureEventInput() are counted,
+    /// so each enable is paired with exactly one disable.
+    private func update(appIsActive: Bool) {
+        let shouldBeActive = isEnabled && appIsActive
+        guard shouldBeActive != active else { return }
+        if shouldBeActive {
+            EnableSecureEventInput()
+        } else {
+            DisableSecureEventInput()
+        }
+        active = shouldBeActive
     }
 }
