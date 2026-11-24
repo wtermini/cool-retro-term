@@ -19,33 +19,25 @@
  */
 
 import AppKit
-import SwiftTerm
 
-/// One terminal window (or tab) running the user's login shell.
-final class TerminalWindowController: NSWindowController, NSWindowDelegate, LocalProcessTerminalViewDelegate {
-    let crtView: CRTTerminalView
+/// A terminal window with its own tab bar. Each tab is a TerminalSession;
+/// only the selected one is in the window, so background tabs don't render.
+final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabBarViewDelegate {
+    private(set) var sessions: [TerminalSession] = []
+    private(set) var selectedIndex = 0
     var onClose: ((TerminalWindowController) -> Void)?
 
-    /// Title set by the program running in the terminal (e.g. the shell, or
-    /// Claude Code's session name), and one the user typed with Rename Tab,
-    /// which takes precedence while set.
-    private var programTitle = "Cool Retro Term"
-    private(set) var customTitle: String?
-
-    /// Tab colour picked from the menu (name from TabColorPalette, or "Custom").
-    private(set) var tabColorName: String?
-    private var userTabColor: NSColor?
-    /// Tab colour set by a program with the iTerm2 escape sequence.
-    private var programTabColor: NSColor?
-    private var programTabRGB: [Double] = [0, 0, 0]
+    private let container = NSView()
+    private let tabBar = TabBarView(frame: NSRect(x: 0, y: 0, width: 960, height: TabBarView.height))
+    private let tabBarAccessory = NSTitlebarAccessoryViewController()
     private var appearanceObserver: NSObjectProtocol?
 
-    init() {
-        let store = ProfileStore.shared
-        let frame = NSRect(x: 0, y: 0, width: 960, height: 640)
-        crtView = CRTTerminalView(frame: frame, profile: store.current,
-                                  effectsEnabled: store.effectsEnabled, zoom: store.zoom)
+    var currentSession: TerminalSession? {
+        sessions.indices.contains(selectedIndex) ? sessions[selectedIndex] : nil
+    }
 
+    init() {
+        let frame = NSRect(x: 0, y: 0, width: 960, height: 640)
         let window = NSWindow(contentRect: frame,
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
@@ -53,27 +45,29 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = .black
         window.titlebarAppearsTransparent = true
-        window.tabbingIdentifier = "CoolRetroTerm"
-        window.tabbingMode = .automatic
+        // This window draws its own tabs instead of using system tabbing.
+        window.tabbingMode = .disallowed
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.minSize = NSSize(width: 320, height: 200)
-        window.contentView = crtView
-        window.initialFirstResponder = crtView.terminal
         window.isReleasedWhenClosed = false
+
+        container.frame = frame
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.cgColor
+        window.contentView = container
 
         super.init(window: window)
 
         window.delegate = self
-        crtView.terminal.processDelegate = self
-        crtView.terminal.terminal.registerOscHandler(code: 6) { [weak self] data in
-            guard let sequence = TabColorSequence(data) else { return }
-            Task { @MainActor [weak self] in self?.applyProgramTabColor(sequence) }
-        }
+        tabBar.delegate = self
+        tabBarAccessory.view = tabBar
+        tabBarAccessory.layoutAttribute = .bottom
+        window.addTitlebarAccessoryViewController(tabBarAccessory)
+
         appearanceObserver = NotificationCenter.default.addObserver(
             forName: .terminalAppearanceDidChange, object: nil, queue: .main
         ) { [weak self] _ in
-            let store = ProfileStore.shared
-            self?.crtView.update(profile: store.current, effectsEnabled: store.effectsEnabled, zoom: store.zoom)
+            MainActor.assumeIsolated { self?.refresh() }
         }
     }
 
@@ -87,196 +81,229 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         }
     }
 
-    /// Starts the user's login shell in their home directory, or the custom
-    /// command set in the Qt app's settings.
-    func startShell() {
-        let shell = Self.loginShell
-        var executable = shell
-        var arguments: [String] = []
-        var execName: String? = "-" + (shell as NSString).lastPathComponent
-        if let command = ProfileStore.shared.customCommand, let program = Self.resolve(command[0]) {
-            executable = program
-            arguments = Array(command.dropFirst())
-            execName = nil
-        }
-        var environment = ProcessInfo.processInfo.environment
-        environment["TERM"] = "xterm-256color"
-        environment["COLORTERM"] = "truecolor"
-        environment["TERM_PROGRAM"] = "cool-retro-term"
-        // Apps launched from Finder or the Dock get no LANG, which makes
-        // shells and tools fall back to ASCII and garble Unicode output.
-        if environment["LANG"] == nil && environment["LC_ALL"] == nil && environment["LC_CTYPE"] == nil {
-            environment["LANG"] = Self.utf8Locale
-        }
-        // The CRT_* debug switches are for this app only; don't pass them on.
-        for key in environment.keys where key.hasPrefix("CRT_") {
-            environment.removeValue(forKey: key)
-        }
-        crtView.terminal.startProcess(
-            executable: executable,
-            args: arguments,
-            environment: environment.map { "\($0.key)=\($0.value)" },
-            execName: execName,
-            currentDirectory: NSHomeDirectory())
+    // MARK: Sessions
 
-        // Debug aid for CI screenshots: type a command once the shell is up.
-        if let command = ProcessInfo.processInfo.environment["CRT_SNAPSHOT_COMMAND"] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                self?.crtView.terminal.send(data: ArraySlice(Array((command + "\n").utf8)))
-            }
+    /// Opens a new tab after the current one and starts its shell.
+    @discardableResult
+    func addSession() -> TerminalSession {
+        let session = TerminalSession(frame: container.bounds)
+        session.onChange = { [weak self] in self?.refresh() }
+        session.onExit = { [weak self, weak session] in
+            guard let self, let session else { return }
+            self.close(session)
+        }
+        let index = sessions.isEmpty ? 0 : selectedIndex + 1
+        sessions.insert(session, at: index)
+        select(index)
+        session.start()
+        return session
+    }
+
+    func select(_ index: Int) {
+        guard sessions.indices.contains(index) else { return }
+        if let current = currentSession, current !== sessions[index] {
+            current.crtView.removeFromSuperview()
+        }
+        selectedIndex = index
+        let view = sessions[index].crtView
+        if view.superview !== container {
+            view.frame = container.bounds
+            view.autoresizingMask = [.width, .height]
+            container.addSubview(view)
+        }
+        window?.makeFirstResponder(view.terminal)
+        refresh()
+    }
+
+    func select(number: Int) {
+        // Cmd-9 always goes to the last tab, as in browsers.
+        select(number == 9 ? sessions.count - 1 : number - 1)
+    }
+
+    func selectNext() { if !sessions.isEmpty { select((selectedIndex + 1) % sessions.count) } }
+    func selectPrevious() { if !sessions.isEmpty { select((selectedIndex - 1 + sessions.count) % sessions.count) } }
+
+    func close(_ session: TerminalSession) {
+        guard let index = sessions.firstIndex(where: { $0 === session }) else { return }
+        let wasSelected = index == selectedIndex
+        session.terminate()
+        session.crtView.removeFromSuperview()
+        sessions.remove(at: index)
+        if sessions.isEmpty {
+            window?.close()
+            return
+        }
+        if index < selectedIndex {
+            selectedIndex -= 1
+            refresh()
+        } else if wasSelected {
+            // Move to the neighbour, as browsers do.
+            selectedIndex = min(index, sessions.count - 1)
+            select(selectedIndex)
+        } else {
+            refresh()
         }
     }
 
-    /// Finds a program on the PATH, as the Qt app's shell launching does.
-    private static func resolve(_ program: String) -> String? {
-        let expanded = (program as NSString).expandingTildeInPath
-        if expanded.contains("/") {
-            return FileManager.default.isExecutableFile(atPath: expanded) ? expanded : nil
+    func closeCurrentTab() {
+        if let session = currentSession { close(session) }
+    }
+
+    func closeOtherTabs(than keep: TerminalSession) {
+        for session in sessions where session !== keep { close(session) }
+    }
+
+    /// Renames the current tab in place in the tab bar, or with a sheet when
+    /// the bar is hidden (a single tab).
+    func renameCurrentTab() {
+        if !tabBarAccessory.isHidden {
+            tabBar.beginEditing(selectedIndex)
+            return
         }
-        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
-        let searchPath = path + ":/usr/local/bin:/opt/homebrew/bin"
-        for directory in searchPath.split(separator: ":") {
-            let candidate = "\(directory)/\(expanded)"
-            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-        }
-        return nil
-    }
-
-    private static var loginShell: String {
-        if let entry = getpwuid(getuid()), let shell = entry.pointee.pw_shell {
-            let path = String(cString: shell)
-            if FileManager.default.isExecutableFile(atPath: path) { return path }
-        }
-        return ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-    }
-
-    private static var utf8Locale: String {
-        let locale = Locale.current
-        if let language = locale.language.languageCode?.identifier,
-           let region = locale.region?.identifier {
-            return "\(language)_\(region).UTF-8"
-        }
-        return "en_US.UTF-8"
-    }
-
-    // MARK: Title
-
-    private func refreshTitle() {
-        window?.title = customTitle ?? programTitle
-        updateTabAppearance()
-    }
-
-    /// Sets a fixed name for this tab; nil goes back to the title programs set.
-    func setCustomTitle(_ title: String?) {
-        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        customTitle = (trimmed?.isEmpty ?? true) ? nil : trimmed
-        refreshTitle()
-    }
-
-    /// Asks for a new tab name in a sheet on this window.
-    func promptRename() {
-        guard let window else { return }
-        let field = NSTextField(string: customTitle ?? window.title)
+        guard let window, let session = currentSession else { return }
+        let field = NSTextField(string: session.customTitle ?? session.title)
         field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
-        field.lineBreakMode = .byTruncatingTail
-
         let alert = NSAlert()
         alert.messageText = "Rename Tab"
-        alert.informativeText = "Leave empty, or choose Automatic, to show the title set by the program "
-            + "running in the tab again."
+        alert.informativeText = "Leave empty, or choose Automatic, to show the title set by the program running in the tab."
         alert.accessoryView = field
         alert.addButton(withTitle: "Rename")
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Automatic")
         alert.window.initialFirstResponder = field
-
-        alert.beginSheetModal(for: window) { [weak self] response in
-            switch response {
-            case .alertFirstButtonReturn: self?.setCustomTitle(field.stringValue)
-            case .alertThirdButtonReturn: self?.setCustomTitle(nil)
-            default: break
+        alert.beginSheetModal(for: window) { [weak self, weak session] response in
+            MainActor.assumeIsolated {
+                switch response {
+                case .alertFirstButtonReturn: session?.setCustomTitle(field.stringValue)
+                case .alertThirdButtonReturn: session?.setCustomTitle(nil)
+                default: break
+                }
+                if let terminal = self?.currentSession?.crtView.terminal {
+                    self?.window?.makeFirstResponder(terminal)
+                }
             }
-            self?.window?.makeFirstResponder(self?.crtView.terminal)
         }
     }
 
-    // MARK: Tab colour
-
-    var tabColor: NSColor? { userTabColor ?? programTabColor }
-
-    func setTabColor(_ color: NSColor?, name: String?) {
-        userTabColor = color
-        tabColorName = color == nil ? nil : name
-        updateTabAppearance()
+    /// Brings the tab bar, window title and proxy icon up to date.
+    private func refresh() {
+        tabBar.items = sessions.map {
+            TabBarView.Item(title: $0.title, color: $0.tabColor, editableTitle: $0.customTitle ?? "")
+        }
+        tabBar.selectedIndex = selectedIndex
+        tabBar.accentColor = NSColor(rgb: ProfileStore.shared.current.effectiveFontColor)
+        tabBarAccessory.isHidden = sessions.count < 2 && !ProfileStore.shared.alwaysShowTabBar
+        if let session = currentSession {
+            window?.title = session.title
+            window?.representedURL = session.directory
+        }
     }
 
-    private func applyProgramTabColor(_ sequence: TabColorSequence) {
-        switch sequence {
-        case .reset:
-            programTabRGB = [0, 0, 0]
-            programTabColor = nil
-        case .channel(let index, let value):
-            programTabRGB[index] = value
-            programTabColor = NSColor(srgbRed: programTabRGB[0], green: programTabRGB[1],
-                                      blue: programTabRGB[2], alpha: 1)
-        }
-        updateTabAppearance()
+    // MARK: TabBarViewDelegate
+
+    func tabBar(_ tabBar: TabBarView, didSelect index: Int) {
+        select(index)
     }
 
-    /// Shows the colour as a dot and coloured title in the tab, and as a
-    /// tint on the CRT bezel.
-    func updateTabAppearance() {
-        guard let window else { return }
-        if let color = tabColor {
-            window.tab.attributedTitle = NSAttributedString(
-                string: window.title,
-                attributes: [.foregroundColor: color, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)])
-            window.tab.accessoryView = TabColorDot(color: color)
-        } else {
-            window.tab.attributedTitle = nil
-            window.tab.accessoryView = nil
+    func tabBar(_ tabBar: TabBarView, didClose index: Int) {
+        if sessions.indices.contains(index) { close(sessions[index]) }
+    }
+
+    func tabBar(_ tabBar: TabBarView, didMoveFrom source: Int, to destination: Int) {
+        guard sessions.indices.contains(source), sessions.indices.contains(destination) else { return }
+        let selected = currentSession
+        sessions.insert(sessions.remove(at: source), at: destination)
+        selectedIndex = sessions.firstIndex { $0 === selected } ?? 0
+        refresh()
+    }
+
+    func tabBar(_ tabBar: TabBarView, didRename index: Int, to title: String?) {
+        if sessions.indices.contains(index) { sessions[index].setCustomTitle(title) }
+    }
+
+    func tabBarDidRequestNewTab(_ tabBar: TabBarView) {
+        addSession()
+    }
+
+    func tabBar(_ tabBar: TabBarView, menuFor index: Int) -> NSMenu? {
+        guard sessions.indices.contains(index) else { return nil }
+        let session = sessions[index]
+        let menu = NSMenu()
+
+        let rename = NSMenuItem(title: "Rename Tab", action: #selector(menuRename(_:)), keyEquivalent: "")
+        rename.representedObject = session
+        rename.target = self
+        menu.addItem(rename)
+
+        let colors = NSMenu()
+        let none = NSMenuItem(title: "None", action: #selector(menuColor(_:)), keyEquivalent: "")
+        none.representedObject = TabColorChoice(session: session, name: nil)
+        none.target = self
+        none.state = session.tabColorName == nil ? .on : .off
+        colors.addItem(none)
+        colors.addItem(.separator())
+        for (name, color) in TabColorPalette.colors {
+            let item = NSMenuItem(title: name, action: #selector(menuColor(_:)), keyEquivalent: "")
+            item.representedObject = TabColorChoice(session: session, name: name)
+            item.image = TabColorPalette.swatch(color)
+            item.target = self
+            item.state = session.tabColorName == name ? .on : .off
+            colors.addItem(item)
         }
-        crtView.accentColor = tabColor
+        let colorItem = NSMenuItem(title: "Tab Color", action: nil, keyEquivalent: "")
+        colorItem.submenu = colors
+        menu.addItem(colorItem)
+
+        menu.addItem(.separator())
+        let close = NSMenuItem(title: "Close Tab", action: #selector(menuClose(_:)), keyEquivalent: "")
+        close.representedObject = session
+        close.target = self
+        menu.addItem(close)
+        if sessions.count > 1 {
+            let others = NSMenuItem(title: "Close Other Tabs", action: #selector(menuCloseOthers(_:)), keyEquivalent: "")
+            others.representedObject = session
+            others.target = self
+            menu.addItem(others)
+        }
+        return menu
+    }
+
+    @objc private func menuRename(_ sender: NSMenuItem) {
+        guard let session = sender.representedObject as? TerminalSession,
+              let index = sessions.firstIndex(where: { $0 === session }) else { return }
+        select(index)
+        renameCurrentTab()
+    }
+
+    @objc private func menuColor(_ sender: NSMenuItem) {
+        guard let choice = sender.representedObject as? TabColorChoice else { return }
+        choice.session?.setTabColor(choice.name.flatMap(TabColorPalette.color(named:)), name: choice.name)
+    }
+
+    @objc private func menuClose(_ sender: NSMenuItem) {
+        if let session = sender.representedObject as? TerminalSession { close(session) }
+    }
+
+    @objc private func menuCloseOthers(_ sender: NSMenuItem) {
+        if let session = sender.representedObject as? TerminalSession { closeOtherTabs(than: session) }
     }
 
     // MARK: NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
-        crtView.terminal.terminate()
+        for session in sessions { session.terminate() }
+        sessions.removeAll()
         onClose?(self)
     }
+}
 
-    // MARK: LocalProcessTerminalViewDelegate
-    //
-    // SwiftTerm's delegate protocol isn't actor-isolated, so these hop to the
-    // main actor before touching the window.
+/// A colour choice from a tab's right-click menu.
+private final class TabColorChoice: NSObject {
+    weak var session: TerminalSession?
+    let name: String?
 
-    nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-
-    nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
-        Task { @MainActor [weak self] in
-            self?.programTitle = title.isEmpty ? "Cool Retro Term" : title
-            self?.refreshTitle()
-        }
-    }
-
-    /// Shells that report their directory (OSC 7, which macOS's zsh does by
-    /// default) get a proxy icon in the title bar.
-    nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
-        let url: URL? = directory.map { value in
-            if let parsed = URL(string: value), parsed.isFileURL {
-                return URL(fileURLWithPath: parsed.path)
-            }
-            return URL(fileURLWithPath: value)
-        }
-        Task { @MainActor [weak self] in
-            self?.window?.representedURL = url
-        }
-    }
-
-    nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
-        Task { @MainActor [weak self] in
-            self?.window?.close()
-        }
+    init(session: TerminalSession, name: String?) {
+        self.session = session
+        self.name = name
     }
 }

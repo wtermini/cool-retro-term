@@ -6,13 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = FontLibrary.shared
         NSApp.mainMenu = buildMainMenu()
-        openWindow(tabbedWith: nil)
+        installTabShortcuts()
+        openWindow()
         NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Clicking the Dock icon with no windows open starts a new session, as in Terminal.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { openWindow(tabbedWith: nil) }
+        if !flag { openWindow() }
         return true
     }
 
@@ -21,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     // MARK: Windows and tabs
 
     @discardableResult
-    private func openWindow(tabbedWith existing: NSWindow?) -> TerminalWindowController {
+    private func openWindow() -> TerminalWindowController {
         let controller = TerminalWindowController()
         controller.onClose = { [weak self] closed in
             self?.controllers.removeAll { $0 === closed }
@@ -29,9 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         controllers.append(controller)
         guard let window = controller.window else { return controller }
 
-        if let existing {
-            existing.addTabbedWindow(window, ordered: .above)
-        } else if let last = controllers.dropLast().last?.window {
+        if let last = controllers.dropLast().last?.window {
             window.setFrame(last.frame, display: false)
             window.setFrameTopLeftPoint(window.cascadeTopLeft(from: NSPoint(x: last.frame.minX, y: last.frame.maxY)))
         } else {
@@ -39,26 +38,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
-        controller.startShell()
+        controller.addSession()
         return controller
     }
 
     @objc func newWindow(_ sender: Any?) {
-        openWindow(tabbedWith: nil)
+        openWindow()
     }
 
-    @objc func newTab(_ sender: Any?) {
-        openWindow(tabbedWith: NSApp.keyWindow ?? NSApp.mainWindow)
+    @MainActor @objc func newTab(_ sender: Any?) {
+        if let controller = frontController {
+            controller.addSession()
+        } else {
+            openWindow()
+        }
     }
 
-    /// Called by the "+" button in the window tab bar.
-    @objc func newWindowForTab(_ sender: Any?) {
-        newTab(sender)
+    @MainActor @objc func closeTab(_ sender: Any?) {
+        frontController?.closeCurrentTab()
+    }
+
+    @MainActor @objc func selectNextTab(_ sender: Any?) { frontController?.selectNext() }
+    @MainActor @objc func selectPreviousTab(_ sender: Any?) { frontController?.selectPrevious() }
+
+    @MainActor @objc func toggleAlwaysShowTabBar(_ sender: Any?) {
+        ProfileStore.shared.alwaysShowTabBar.toggle()
+    }
+
+    /// Cmd-1 to Cmd-9 switch tabs.
+    private func installTabShortcuts() {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+                  let characters = event.charactersIgnoringModifiers,
+                  let number = Int(characters), (1...9).contains(number) else { return event }
+            let handled: Bool = MainActor.assumeIsolated {
+                guard let controller = self?.frontController else { return false }
+                controller.select(number: number)
+                return true
+            }
+            return handled ? nil : event
+        }
     }
 
     // MARK: Tab colour
 
-    private weak var colorPanelTarget: TerminalWindowController?
+    private weak var colorPanelTarget: TerminalSession?
 
     @MainActor private var frontController: TerminalWindowController? {
         let window = NSApp.mainWindow ?? NSApp.keyWindow
@@ -66,20 +90,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
 
     @MainActor @objc func renameTab(_ sender: Any?) {
-        frontController?.promptRename()
+        frontController?.renameCurrentTab()
     }
 
     @MainActor @objc func chooseTabColor(_ sender: NSMenuItem) {
         let name = sender.representedObject as? String
-        frontController?.setTabColor(name.flatMap(TabColorPalette.color(named:)), name: name)
+        frontController?.currentSession?.setTabColor(name.flatMap(TabColorPalette.color(named:)), name: name)
     }
 
     @MainActor @objc func chooseCustomTabColor(_ sender: Any?) {
-        guard let controller = frontController else { return }
-        colorPanelTarget = controller
+        guard let session = frontController?.currentSession else { return }
+        colorPanelTarget = session
         let panel = NSColorPanel.shared
         panel.showsAlpha = false
-        panel.color = controller.tabColor ?? .systemBlue
+        panel.color = session.tabColor ?? .systemBlue
         panel.setTarget(self)
         panel.setAction(#selector(colorPanelChanged(_:)))
         panel.makeKeyAndOrderFront(nil)
@@ -154,13 +178,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(selectProfile(_:)):
             let name = ProfileStore.shared.current.name
             menuItem.state = !name.isEmpty && (menuItem.representedObject as? String) == name ? .on : .off
-        case #selector(renameTab(_:)):
+        case #selector(renameTab(_:)), #selector(closeTab(_:)):
             return frontController != nil
+        case #selector(selectNextTab(_:)), #selector(selectPreviousTab(_:)):
+            return (frontController?.sessions.count ?? 0) > 1
+        case #selector(toggleAlwaysShowTabBar(_:)):
+            menuItem.state = ProfileStore.shared.alwaysShowTabBar ? .on : .off
         case #selector(chooseTabColor(_:)):
-            menuItem.state = (menuItem.representedObject as? String) == frontController?.tabColorName ? .on : .off
+            menuItem.state = (menuItem.representedObject as? String) == frontController?.currentSession?.tabColorName ? .on : .off
             return frontController != nil
         case #selector(chooseCustomTabColor(_:)):
-            menuItem.state = frontController?.tabColorName == "Custom" ? .on : .off
+            menuItem.state = frontController?.currentSession?.tabColorName == "Custom" ? .on : .off
             return frontController != nil
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
@@ -241,7 +269,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tabColors.addItem(item("Custom…", #selector(chooseCustomTabColor(_:))))
         shell.addItem(withTitle: "Tab Color", action: nil, keyEquivalent: "").submenu = tabColors
         shell.addItem(.separator())
-        shell.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
+        shell.addItem(item("Close Tab", #selector(closeTab(_:)), "w"))
+        shell.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), "w", [.command, .shift]))
 
         let edit = submenu(in: main, title: "Edit")
         edit.addItem(item("Copy", #selector(NSText.copy(_:)), "c"))
@@ -253,6 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         profiles.delegate = self
         view.addItem(withTitle: "Profile", action: nil, keyEquivalent: "").submenu = profiles
         view.addItem(item("CRT Effects", #selector(toggleEffects(_:)), "e", [.command, .option]))
+        view.addItem(item("Always Show Tab Bar", #selector(toggleAlwaysShowTabBar(_:))))
         view.addItem(.separator())
         view.addItem(item("Bigger", #selector(makeTextBigger(_:)), "+"))
         view.addItem(item("Smaller", #selector(makeTextSmaller(_:)), "-"))
@@ -263,6 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let window = submenu(in: main, title: "Window")
         window.addItem(item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"))
         window.addItem(item("Zoom", #selector(NSWindow.performZoom(_:))))
+        window.addItem(.separator())
+        window.addItem(item("Show Previous Tab", #selector(selectPreviousTab(_:)), "[", [.command, .shift]))
+        window.addItem(item("Show Next Tab", #selector(selectNextTab(_:)), "]", [.command, .shift]))
         window.addItem(.separator())
         window.addItem(item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:))))
         NSApp.windowsMenu = window

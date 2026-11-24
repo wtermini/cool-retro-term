@@ -265,6 +265,12 @@ final class ProfileStore {
         notify()
     }
 
+    /// Show the tab bar even when a window has a single tab.
+    var alwaysShowTabBar: Bool {
+        get { UserDefaults.standard.bool(forKey: "alwaysShowTabBar") }
+        set { UserDefaults.standard.set(newValue, forKey: "alwaysShowTabBar"); notify() }
+    }
+
     var effectsEnabled: Bool {
         get { UserDefaults.standard.object(forKey: "effectsEnabled") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "effectsEnabled"); notify() }

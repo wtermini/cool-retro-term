@@ -33,8 +33,8 @@ running.
 
 ## What's native
 
-- Real macOS windows and **tabs** (Cmd-T, the tab bar's "+" button, Window ▸
-  Merge All Windows), **full screen** (Ctrl-Cmd-F) and the standard menu bar.
+- Real macOS windows, **full screen** (Ctrl-Cmd-F) and the standard menu
+  bar, with the app's own **tab bar** in the title bar area (see below).
 - **Title bar proxy icon** for the shell's current directory (zsh on macOS
   reports it by default), and the window title the shell sets.
 - **Option as Meta**, as expected in a terminal.
@@ -91,15 +91,22 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
+- **Tabs**: Cmd-T opens one, Cmd-W closes one (Shift-Cmd-W closes the
+  window), Cmd-1 to Cmd-9 and Shift-Cmd-[ / ] switch between them. In the tab
+  bar, click "+" or double-click empty space for a new tab, drag tabs to
+  reorder them, middle-click or use the × to close, and right-click for a
+  menu. The bar appears once a window has two tabs, or always with View ▸
+  Always Show Tab Bar.
 - **Tab names** follow the title the running program sets: the shell's
-  current command or directory, or Claude Code's session name. **Shell ▸
-  Rename Tab…** (Shift-Cmd-R) gives a tab a fixed name instead; leave it
-  empty or choose Automatic to go back.
-- **Shell ▸ Tab Color** gives the current tab a colour (or Custom… for any
-  colour). It shows as a dot and a coloured title in the tab, and tints the
-  CRT bezel, so it's visible even without a tab bar. Programs and shell
-  scripts can also set it with iTerm2's escape sequence, for example to turn
-  a tab red while you're on a production server:
+  current command or directory, or Claude Code's session name.
+  **Double-click a tab** (or Shell ▸ Rename Tab…, Shift-Cmd-R) to give it a
+  fixed name; Return saves, Escape cancels, and an empty name goes back to
+  the automatic title.
+- **Tab colours**: right-click a tab, or Shell ▸ Tab Color (Custom… for any
+  colour). The whole tab is filled with the colour, brightest when selected,
+  and the CRT bezel is tinted to match. Programs and shell scripts can also
+  set it with the common OSC 6 escape sequence, for example to turn a tab
+  red while you're on a production server:
 
   ```sh
   printf '\e]6;1;bg;red;brightness;220\a\e]6;1;bg;green;brightness;40\a\e]6;1;bg;blue;brightness;40\a'

@@ -48,26 +48,7 @@ enum TabColorPalette {
     }
 }
 
-/// The coloured dot shown in a window's tab.
-final class TabColorDot: NSView {
-    init(color: NSColor) {
-        super.init(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
-        wantsLayer = true
-        layer?.backgroundColor = color.cgColor
-        layer?.cornerRadius = 5
-        translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 10),
-            heightAnchor.constraint(equalToConstant: 10),
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-}
-
-/// iTerm2's tab colour escape sequence, so scripts and shell config can
+/// The widely used OSC 6 tab colour escape sequence, so scripts and shell config can
 /// colour a tab, e.g. red while you're logged in to a production server:
 ///
 ///     printf '\e]6;1;bg;red;brightness;255\a'   (and green, blue; 0-255 each)
