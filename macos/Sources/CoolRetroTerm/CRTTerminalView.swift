@@ -304,8 +304,13 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         guard let snapshot, let data = snapshot.bitmapData else { return }
         snapshot.size = size
 
+        // Leave SwiftTerm's scroll bar out of the CRT image; it's still
+        // there for the mouse, just not drawn on the "glass".
+        let scrollers = terminal.subviews.filter { $0 is NSScroller && !$0.isHidden }
         capturing = true
+        scrollers.forEach { $0.isHidden = true }
         terminal.cacheDisplay(in: terminal.bounds, to: snapshot)
+        scrollers.forEach { $0.isHidden = false }
         capturing = false
 
         renderer.updateContent(bytes: data, width: width, height: height, bytesPerRow: snapshot.bytesPerRow)
