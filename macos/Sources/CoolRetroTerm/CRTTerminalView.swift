@@ -27,6 +27,26 @@ import SwiftTerm
 final class RetroTerminalView: LocalProcessTerminalView {
     var onInvalidate: (() -> Void)?
 
+    /// Shift-Return inserts a new line in programs that support it (such as
+    /// Claude Code) instead of submitting.
+    ///
+    /// Terminals normally send the same byte for Return and Shift-Return.
+    /// When the program has turned on the extended keyboard protocol,
+    /// SwiftTerm already reports Shift-Return distinctly, so this leaves it
+    /// alone. Otherwise it sends ESC followed by Return, the same as
+    /// Option-Return with Option as Meta, which such programs treat as a
+    /// new line (and zsh inserts a line break for).
+    /// Returns true if it handled the key.
+    func handleShiftReturn(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.shift, .control, .option, .command])
+        guard flags == .shift,
+              event.keyCode == 36 || event.keyCode == 76,   // Return, keypad Enter
+              !hasMarkedText(),
+              terminal.keyboardEnhancementFlags.isEmpty else { return false }
+        send(data: ArraySlice([0x1b, 0x0d]))
+        return true
+    }
+
     /// SwiftTerm holds its delegate weakly, so keep it alive here.
     private var securityDelegate: TerminalSecurityDelegate?
 
