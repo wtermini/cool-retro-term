@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         SecureKeyboardEntry.shared.appWillResignActive()
     }
 
-    @objc func toggleSecureKeyboardEntry(_ sender: Any?) {
+    @MainActor @objc func toggleSecureKeyboardEntry(_ sender: Any?) {
         SecureKeyboardEntry.shared.isEnabled.toggle()
     }
 
