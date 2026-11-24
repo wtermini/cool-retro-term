@@ -1,31 +1,39 @@
 diff --git a/lib/Character.h b/lib/Character.h
-index 86eea70..9c795d2 100644
+index 86eea70..5256e7a 100644
 --- a/lib/Character.h
 +++ b/lib/Character.h
-@@ -123,7 +123,8 @@ public:
+@@ -123,7 +123,13 @@ public:
  
    inline bool isLineChar() const
    {
 -      return (rendition & RE_EXTENDED_CHAR) ? false : ((character & 0xFF80) == 0x2500);
 +      // Box drawing (U+2500..U+257F) and block elements (U+2580..U+259F)
-+      return (rendition & RE_EXTENDED_CHAR) ? false : (character >= 0x2500 && character <= 0x259F);
++      if (rendition & RE_EXTENDED_CHAR)
++          return false;
++      // U+23BF (⎿) and U+23FA (⏺) are used as line markers by CLI tools
++      // such as Claude Code, but almost no retro font has them.
++      return (character >= 0x2500 && character <= 0x259F)
++          || character == 0x23BF || character == 0x23FA;
    }
  
    inline bool isSpace() const
 diff --git a/lib/TerminalDisplay.cpp b/lib/TerminalDisplay.cpp
-index d6c1edf..c7fd107 100644
+index d6c1edf..083863f 100644
 --- a/lib/TerminalDisplay.cpp
 +++ b/lib/TerminalDisplay.cpp
-@@ -215,7 +215,7 @@ bool TerminalDisplay::isLineChar(Character c) const {
+@@ -215,7 +215,10 @@ bool TerminalDisplay::isLineChar(Character c) const {
  }
  
  bool TerminalDisplay::isLineCharString(const std::wstring& string) const {
 -    return string.length() > 0 && _drawLineChars && (string[0] & 0xFF80) == 0x2500;
-+    return string.length() > 0 && _drawLineChars && string[0] >= 0x2500 && string[0] <= 0x259F;
++    if (string.empty() || !_drawLineChars)
++        return false;
++    const auto c = string[0];
++    return (c >= 0x2500 && c <= 0x259F) || c == 0x23BF || c == 0x23FA;
  }
  
  
-@@ -707,6 +707,66 @@ static void drawOtherChar(QPainter& paint, int x, int y, int w, int h, uchar cod
+@@ -707,6 +710,91 @@ static void drawOtherChar(QPainter& paint, int x, int y, int w, int h, uchar cod
      }
  }
  
@@ -89,10 +97,35 @@ index d6c1edf..c7fd107 100644
 +    if (q & LR) fill(cx, cy, w - cx, h - cy);
 +}
 +
++static void drawSymbolChar(QPainter& paint, int x, int y, int w, int h, uint code)
++{
++    const QColor color = paint.pen().color();
++    switch (code) {
++    case 0x23FA: { // BLACK CIRCLE FOR RECORD: filled dot, centred in the cell
++        const qreal d = qMin(w, h) * 0.6;
++        paint.save();
++        paint.setRenderHint(QPainter::Antialiasing, true);
++        paint.setPen(Qt::NoPen);
++        paint.setBrush(color);
++        paint.drawEllipse(QRectF(x + (w - d) / 2.0, y + (h - d) / 2.0, d, d));
++        paint.restore();
++        break;
++    }
++    case 0x23BF: { // BOTTOM LEFT CORNER: vertical stroke down the middle, then right
++        const int cx = x + w / 2;
++        const int cy = y + h / 2;
++        const int ex = x + w - 1;
++        paint.drawLine(cx, y, cx, cy);
++        paint.drawLine(cx, cy, ex, cy);
++        break;
++    }
++    }
++}
++
  void TerminalDisplay::drawLineCharString(    QPainter& painter, int x, int y, const std::wstring& str,
                                      const Character* attributes) const
  {
-@@ -721,7 +781,12 @@ void TerminalDisplay::drawLineCharString(    QPainter& painter, int x, int y, co
+@@ -721,7 +809,16 @@ void TerminalDisplay::drawLineCharString(    QPainter& painter, int x, int y, co
  
          for (size_t i=0 ; i < str.length(); i++)
          {
@@ -100,6 +133,10 @@ index d6c1edf..c7fd107 100644
 +            const uint ch = static_cast<uint>(str[i]);
 +            if (ch >= 0x2580 && ch <= 0x259F) {
 +                drawBlockChar(painter, x + (_fontWidth * i), y, _fontWidth, _fontHeight, ch);
++                continue;
++            }
++            if (ch == 0x23BF || ch == 0x23FA) {
++                drawSymbolChar(painter, x + (_fontWidth * i), y, _fontWidth, _fontHeight, ch);
 +                continue;
 +            }
 +            uint8_t code = static_cast<uint8_t>(ch & 0xffU);

@@ -11,6 +11,11 @@ smaller than the cell once line spacing is added), so logos and graphics built
 from them, such as the Claude Code logo `▐▛███▜▌`, come out misaligned with gaps
 between rows.
 
+It also draws the line markers Claude Code uses, `⏺` (U+23FA) and `⎿`
+(U+23BF), since only Cozette, Iosevka and unscii-16 include them. With the
+other fonts, Qt substitutes a glyph from whatever system font has one, which
+looks out of place (on macOS it can come out looking like a stray letter).
+
 Apply it before building:
 
     git submodule update --init
