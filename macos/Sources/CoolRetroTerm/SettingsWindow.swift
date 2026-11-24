@@ -88,6 +88,30 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
     }
 
+    /// For checking the layout in CI: saves a PNG of each pane into the
+    /// directory, then calls `done`.
+    func writeSnapshots(to directory: URL, done: @escaping () -> Void) {
+        show()
+        func capture(_ index: Int) {
+            guard index < Pane.allCases.count else {
+                done()
+                return
+            }
+            tabs.selectedTabViewItemIndex = index
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self, let view = self.window?.contentView else { return }
+                if let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    let url = directory.appendingPathComponent("Settings-\(Pane.allCases[index].rawValue).png")
+                    try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                    NSLog("cool-retro-term: wrote %@", url.path)
+                }
+                capture(index + 1)
+            }
+        }
+        capture(0)
+    }
+
     func windowWillClose(_ notification: Notification) {
         let index = tabs.selectedTabViewItemIndex
         if Pane.allCases.indices.contains(index) {

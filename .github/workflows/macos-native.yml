@@ -60,6 +60,19 @@ jobs:
           done
           exit $status
 
+      - name: Settings window screenshots
+        if: always()
+        run: |
+          APP_BIN="macos/build/Cool Retro Term.app/Contents/MacOS/CoolRetroTerm"
+          [ -x "$APP_BIN" ] || exit 0
+          CRT_SETTINGS_SNAPSHOT_DIR="$PWD/screenshots" "$APP_BIN" > screenshots/settings.log 2>&1 &
+          pid=$!
+          for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          kill "$pid" 2>/dev/null || true
+          wait "$pid" 2>/dev/null || true
+          cat screenshots/settings.log
+          ls screenshots
+
       - name: Print screenshot previews
         # Small JPEGs as base64 in the log, for reviewing the rendering
         # without downloading the artifact.
