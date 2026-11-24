@@ -97,8 +97,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
   reorder them, middle-click or use the × to close, and right-click for a
   menu. The bar appears once a window has two tabs, or always with View ▸
   Always Show Tab Bar.
-- **Shift-Return** inserts a new line in programs that support it, such as
-  Claude Code, instead of submitting. (Option-Return does the same.)
+- **Shift-Return** and **Control-Return** insert a new line in programs that
+  support it, such as Claude Code, instead of submitting. (Option-Return and
+  Control-J do the same.)
 - **Tab names** follow the title the running program sets: the shell's
   current command or directory, or Claude Code's session name.
   **Double-click a tab** (or Shell ▸ Rename Tab…, Shift-Cmd-R) to give it a

@@ -65,11 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.alwaysShowTabBar.toggle()
     }
 
-    /// Cmd-1 to Cmd-9 switch tabs, and Shift-Return is sent as a new line.
+    /// Cmd-1 to Cmd-9 switch tabs; Shift- and Control-Return insert new lines.
     private func installTabShortcuts() {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let shiftReturnHandled: Bool = MainActor.assumeIsolated {
-                (event.window?.firstResponder as? RetroTerminalView)?.handleShiftReturn(event) ?? false
+                (event.window?.firstResponder as? RetroTerminalView)?.handleModifiedReturn(event) ?? false
             }
             if shiftReturnHandled { return nil }
             guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
