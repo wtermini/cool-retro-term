@@ -12,7 +12,10 @@ let package = Package(
     name: "CoolRetroTerm",
     platforms: [.macOS(.v13)],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm", exact: "1.20.0"),
+        // SwiftTerm 1.20.0, pinned to its commit so a moved tag can't change
+        // what gets built. Review the changes before updating.
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm",
+                 revision: "5d14406844143538cd8f8851d2d8a67c1fe443e5"),
     ],
     targets: [
         .executableTarget(

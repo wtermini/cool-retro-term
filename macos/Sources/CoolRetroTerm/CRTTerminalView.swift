@@ -27,6 +27,17 @@ import SwiftTerm
 final class RetroTerminalView: LocalProcessTerminalView {
     var onInvalidate: (() -> Void)?
 
+    /// SwiftTerm holds its delegate weakly, so keep it alive here.
+    private var securityDelegate: TerminalSecurityDelegate?
+
+    /// Routes SwiftTerm's callbacks through this app's security policy
+    /// (see TerminalSecurity.swift).
+    func installSecurityPolicy() {
+        let delegate = TerminalSecurityDelegate(view: self)
+        securityDelegate = delegate
+        terminalDelegate = delegate
+    }
+
     override func setNeedsDisplay(_ invalidRect: NSRect) {
         super.setNeedsDisplay(invalidRect)
         onInvalidate?()
@@ -104,6 +115,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         layer?.backgroundColor = NSColor.black.cgColor
 
         terminal.optionAsMetaKey = true
+        terminal.installSecurityPolicy()
         addSubview(terminal)
 
         overlay.host = self

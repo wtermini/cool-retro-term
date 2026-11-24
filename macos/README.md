@@ -113,6 +113,24 @@ selecting text lands on the characters under the pointer.
 The shaders are compiled when the app starts, so building needs no Metal
 toolchain.
 
+## Security
+
+Anything printed in a terminal can contain escape sequences, including
+output from a file you `cat`, a page you `curl` or a remote machine over ssh.
+On top of SwiftTerm's defaults, this app:
+
+- **refuses clipboard reads** requested by programs (OSC 52), which would
+  otherwise let any output silently read what you last copied. Programs can
+  still *set* the clipboard, as vim and tmux do;
+- **checks Cmd-clicked links**: web and mail links open normally, documents
+  open in their app, applications and scripts are only shown in Finder, and
+  other kinds of links ask first and show where they really point;
+- runs your shell as you, with your normal environment and no extra
+  privileges. Like any terminal, the app isn't sandboxed, since it has to be
+  able to run anything you ask it to.
+
+SwiftTerm is pinned to the exact commit of release 1.20.0 in `Package.swift`.
+
 ## Licenses
 
 The native app is part of cool-retro-term and, like it, is licensed under the
