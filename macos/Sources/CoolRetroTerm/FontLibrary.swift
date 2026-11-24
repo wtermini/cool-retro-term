@@ -1,3 +1,23 @@
+/*
+ * Copyright (c) 2026 cool-retro-term contributors
+ * https://github.com/Swordfish90/cool-retro-term
+ *
+ * This file is part of cool-retro-term.
+ *
+ * cool-retro-term is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import AppKit
 import CoreText
 
@@ -38,6 +58,17 @@ final class FontLibrary {
     }
 
     func entry(for id: String) -> BundledFont? { fonts[id] }
+
+    /// The font for a profile: a bundled font id, or (fontSource 1) the
+    /// family name of a font installed on the system.
+    func font(for profile: Profile, pointSize: CGFloat) -> NSFont {
+        if profile.fontSource == 1,
+           let font = NSFontManager.shared.font(withFamily: profile.fontName, traits: [], weight: 5, size: pointSize)
+            ?? NSFont(name: profile.fontName, size: pointSize) {
+            return font
+        }
+        return font(for: profile.fontName, pointSize: pointSize)
+    }
 
     func font(for id: String, pointSize: CGFloat) -> NSFont {
         if let name = postScriptNames[id], let font = NSFont(name: name, size: pointSize) {

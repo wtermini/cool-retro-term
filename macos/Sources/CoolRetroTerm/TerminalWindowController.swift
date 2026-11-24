@@ -1,3 +1,23 @@
+/*
+ * Copyright (c) 2026 cool-retro-term contributors
+ * https://github.com/Swordfish90/cool-retro-term
+ *
+ * This file is part of cool-retro-term.
+ *
+ * cool-retro-term is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import AppKit
 import SwiftTerm
 
@@ -50,9 +70,18 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         }
     }
 
-    /// Starts the user's login shell in their home directory.
+    /// Starts the user's login shell in their home directory, or the custom
+    /// command set in the Qt app's settings.
     func startShell() {
         let shell = Self.loginShell
+        var executable = shell
+        var arguments: [String] = []
+        var execName: String? = "-" + (shell as NSString).lastPathComponent
+        if let command = ProfileStore.shared.customCommand, let program = Self.resolve(command[0]) {
+            executable = program
+            arguments = Array(command.dropFirst())
+            execName = nil
+        }
         var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         environment["COLORTERM"] = "truecolor"
@@ -63,10 +92,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
             environment["LANG"] = Self.utf8Locale
         }
         crtView.terminal.startProcess(
-            executable: shell,
-            args: [],
+            executable: executable,
+            args: arguments,
             environment: environment.map { "\($0.key)=\($0.value)" },
-            execName: "-" + (shell as NSString).lastPathComponent,
+            execName: execName,
             currentDirectory: NSHomeDirectory())
 
         // Debug aid for CI screenshots: type a command once the shell is up.
@@ -75,6 +104,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
                 self?.crtView.terminal.send(data: ArraySlice(Array((command + "\n").utf8)))
             }
         }
+    }
+
+    /// Finds a program on the PATH, as the Qt app's shell launching does.
+    private static func resolve(_ program: String) -> String? {
+        let expanded = (program as NSString).expandingTildeInPath
+        if expanded.contains("/") {
+            return FileManager.default.isExecutableFile(atPath: expanded) ? expanded : nil
+        }
+        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let searchPath = path + ":/usr/local/bin:/opt/homebrew/bin"
+        for directory in searchPath.split(separator: ":") {
+            let candidate = "\(directory)/\(expanded)"
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return nil
     }
 
     private static var loginShell: String {

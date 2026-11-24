@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 cool-retro-term contributors
+# https://github.com/Swordfish90/cool-retro-term
+#
+# This file is part of cool-retro-term.
+#
+# cool-retro-term is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 # Builds "Cool Retro Term.app", the native macOS front end, into macos/build/.
 #
 # Usage: ./build-app.sh [--debug] [--universal]
@@ -40,6 +58,20 @@ cp "$BIN_DIR/CoolRetroTerm" "$APP/Contents/MacOS/"
 sed "s/__VERSION__/$VERSION/g" Info.plist > "$APP/Contents/Info.plist"
 cp -R "$RESOURCES/." "$APP/Contents/Resources/"
 cp "$REPO_DIR/app/icons/crt.icns" "$APP/Contents/Resources/"
+# SwiftPM resource bundles, if any dependency has them.
+find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP/Contents/Resources/" \;
+
+# Licenses: the app's own (GPL-3.0), third-party notices and SwiftTerm's MIT
+# license. Each font's license already sits next to it in Resources/Fonts.
+SWIFTTERM_LICENSE="$MACOS_DIR/.build/checkouts/SwiftTerm/LICENSE"
+if [ ! -f "$SWIFTTERM_LICENSE" ]; then
+    echo "error: SwiftTerm's LICENSE not found at $SWIFTTERM_LICENSE" >&2
+    exit 1
+fi
+mkdir -p "$APP/Contents/Resources/Licenses"
+cp "$REPO_DIR/gpl-3.0.txt" "$APP/Contents/Resources/Licenses/COPYING.txt"
+cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/Licenses/"
+cp "$SWIFTTERM_LICENSE" "$APP/Contents/Resources/Licenses/SwiftTerm-LICENSE.txt"
 
 # Ad-hoc signature so macOS will run the app on this machine.
 codesign --force --sign - "$APP"

@@ -1,5 +1,8 @@
 // swift-tools-version:5.9
 //
+// Part of cool-retro-term, licensed under the GNU General Public License
+// version 3 or (at your option) any later version. See gpl-3.0.txt.
+//
 // Native macOS front end for cool-retro-term.
 // Build the app bundle with ./build-app.sh (see README.md).
 

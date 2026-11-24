@@ -16,6 +16,9 @@ It also draws the line markers Claude Code uses, `⏺` (U+23FA) and `⎿`
 other fonts, Qt substitutes a glyph from whatever system font has one, which
 looks out of place (on macOS it can come out looking like a stray letter).
 
+The patch changes files in qmltermwidget, which is licensed under the GNU
+GPL version 2 or later. The changes are under the same license.
+
 Apply it before building:
 
     git submodule update --init

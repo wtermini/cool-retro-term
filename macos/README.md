@@ -11,6 +11,26 @@ Linux and macOS as before.
 | CRT effects | Qt shaders | Metal ports of the same shaders |
 | Profiles and fonts | built in | shared with the Qt app at build time |
 
+## Shared settings with the Qt app
+
+Both apps use the **same configuration**. The native app reads and writes
+the Qt app's settings database (QtQuick LocalStorage, a SQLite file under
+`~/Library/Application Support/cool-retro-term/cool-retro-term/QML/OfflineStorage/Databases/`):
+
+- **Current profile**: whatever profile and effect settings you last used in
+  the Qt app, including edits made in its settings dialog. Picking a profile
+  here sets it for the Qt app too.
+- **Custom profiles** saved in the Qt app appear under View ▸ Profile.
+- **Text size** is the Qt app's font scaling (Cmd-Plus / Cmd-Minus change it
+  in the same steps).
+- **Custom command**: if the Qt app is set to run a custom command instead of
+  the shell, so is this one.
+
+Changes made in the Qt app are picked up when you switch back to this app.
+Only the CRT Effects switch is specific to this app. Like two copies of the
+Qt app, whichever app saves last wins if both change the same setting while
+running.
+
 ## What's native
 
 - Real macOS windows and **tabs** (Cmd-T, the tab bar's "+" button, Window ▸
@@ -65,8 +85,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term.app"
 
 ## Using it
 
-- **View ▸ Profile** switches between the built-in profiles (the same ones as
-  the Qt app). The choice is remembered and applies to every window.
+- **View ▸ Profile** switches between the built-in profiles and your custom
+  profiles from the Qt app. The choice is saved to the shared settings and
+  applies to every window.
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
@@ -92,11 +113,35 @@ selecting text lands on the characters under the pointer.
 The shaders are compiled when the app starts, so building needs no Metal
 toolchain.
 
+## Licenses
+
+The native app is part of cool-retro-term and, like it, is licensed under the
+GNU GPL version 3 or later; every source file carries the same license header
+as the Qt app's. The Metal shaders are ports of the Qt app's shaders and keep
+their original copyright notice.
+
+Third-party code and assets keep their own licenses, all compatible with
+GPL-3.0:
+
+- [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), MIT License.
+- The bundled fonts, unmodified and each with its license file (SIL OFL,
+  MIT, CC BY-SA 4.0, Kreative free use license and others).
+
+`build-app.sh` puts the GPL text, SwiftTerm's license and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the app's
+`Contents/Resources/Licenses`, next to the fonts and their licenses; Help ▸
+Licenses shows them. If you distribute a build, the GPL also requires you to
+offer the corresponding source code, such as a link to this repository at the
+commit you built.
+
+Three font folders inherited from the Qt app (Cozette, Fixedsys Excelsior and
+Atari Classic, whose terms are in a PDF) don't include a plain license file;
+THIRD_PARTY_NOTICES.md notes where their terms come from.
+
 ## Not done yet
 
-- A settings window for editing profiles and individual effects (the Qt app's
-  settings dialog). Profiles can be picked from the menu.
-- Custom profiles, importing profiles from the Qt app, and the system font list.
+- A settings window for editing profiles and individual effects. For now, edit
+  them in the Qt app; this app picks up the changes.
 - Line spacing and font width from the profiles (SwiftTerm doesn't support them).
 - Window opacity.
 - A confirmation before closing a window with a running process.

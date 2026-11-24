@@ -1,3 +1,23 @@
+/*
+ * Copyright (c) 2026 cool-retro-term contributors
+ * https://github.com/Swordfish90/cool-retro-term
+ *
+ * This file is part of cool-retro-term.
+ *
+ * cool-retro-term is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import AppKit
 import MetalKit
 import SwiftTerm
@@ -69,7 +89,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private var framesDrawn = 0
     private var debugSnapshotWritten = false
 
-    /// Text size, in points, before zoom.
+    /// Text size, in points, at the Qt app's default font scaling (1.0).
     private static let baseFontSize: CGFloat = 16
 
     init(frame: NSRect, profile: Profile, effectsEnabled: Bool, zoom: Double) {
@@ -132,8 +152,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private var showsEffects: Bool { effectsEnabled && renderer != nil }
 
     private func applyAppearance() {
-        fontEntry = FontLibrary.shared.entry(for: profile.fontName)
-        terminal.font = FontLibrary.shared.font(for: profile.fontName, pointSize: fontSize)
+        fontEntry = profile.fontSource == 0 ? FontLibrary.shared.entry(for: profile.fontName) : nil
+        terminal.font = FontLibrary.shared.font(for: profile, pointSize: fontSize)
 
         if showsEffects {
             // The shaders map brightness to the profile's colours.
