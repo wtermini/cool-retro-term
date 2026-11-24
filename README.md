@@ -25,6 +25,10 @@ If you want to get a hold of the latest version, just go to the Releases page an
 
 Alternatively, most distributions such as Ubuntu, Fedora or Arch already package cool-retro-term in their official repositories.
 
+## Native macOS app
+
+There is also a native macOS front end in [`macos/`](macos/README.md), built with AppKit, Metal and SwiftTerm. It shares the profiles and fonts with the Qt app, which is unchanged.
+
 ## Building
 
 Check out the wiki and follow the instructions on how to build it on [Linux](https://github.com/Swordfish90/cool-retro-term/wiki/Build-Instructions-(Linux)) and [macOS](https://github.com/Swordfish90/cool-retro-term/wiki/Build-Instructions-(macOS)).

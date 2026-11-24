@@ -1,0 +1,79 @@
+name: macOS native app
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'macos/**'
+      - 'app/qml/fonts/**'
+      - 'app/qml/ApplicationSettings.qml'
+      - 'app/fontmanager.cpp'
+      - '.github/workflows/macos-native.yml'
+  pull_request:
+    paths:
+      - 'macos/**'
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Check the Metal shaders compile
+        # The app compiles the shaders at launch, so this is an early check
+        # only; it is skipped if this Xcode lacks the Metal toolchain.
+        continue-on-error: true
+        run: xcrun -sdk macosx metal -c macos/Shaders/CRT.metal -o "$RUNNER_TEMP/CRT.air"
+
+      - name: Build the app
+        run: macos/build-app.sh
+
+      - name: Launch and take screenshots
+        run: |
+          APP_BIN="macos/build/Cool Retro Term.app/Contents/MacOS/CoolRetroTerm"
+          mkdir -p screenshots
+          status=0
+          for profile in "Default Amber" "Monochrome Green" "IBM VGA 8x16"; do
+            out="$PWD/screenshots/$(echo "$profile" | tr ' ' '-').png"
+            CRT_PROFILE="$profile" CRT_SNAPSHOT_PATH="$out" CRT_SNAPSHOT_QUIT=1 \
+              CRT_SNAPSHOT_COMMAND="sh $PWD/macos/scripts/demo.sh" \
+              "$APP_BIN" > "screenshots/$(basename "$out" .png).log" 2>&1 &
+            pid=$!
+            for _ in $(seq 1 45); do
+              kill -0 "$pid" 2>/dev/null || break
+              sleep 1
+            done
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            echo "::group::$profile log"
+            cat "screenshots/$(basename "$out" .png).log"
+            echo "::endgroup::"
+            if [ -f "$out" ]; then echo "screenshot: $out"; else echo "::error::no screenshot for $profile"; status=1; fi
+          done
+          exit $status
+
+      - name: Package
+        if: always()
+        run: |
+          if [ -d "macos/build/Cool Retro Term.app" ]; then
+            ditto -c -k --keepParent "macos/build/Cool Retro Term.app" Cool-Retro-Term-macOS.zip
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Cool-Retro-Term-macOS
+          path: Cool-Retro-Term-macOS.zip
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: screenshots
+          if-no-files-found: ignore
