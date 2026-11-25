@@ -50,6 +50,60 @@ final class RetroTerminalView: LocalProcessTerminalView {
         return true
     }
 
+    // MARK: Cursor style
+    //
+    // The user's cursor (shape and blinking, from the settings) is the
+    // default. A program can set its own (DECSCUSR, e.g. a bar in vim's
+    // insert mode), which is shown until the program asks for the default
+    // again (DECSCUSR 0) or resets the terminal (RIS); then the user's
+    // cursor comes back. SwiftTerm treats DECSCUSR 0 as a blinking block and
+    // keeps the style across a reset, so those are spotted here.
+
+    /// The user's cursor, applied whenever no program cursor is in effect.
+    var userCursorStyle: CursorStyle = .steadyBlock {
+        didSet { if userCursorStyle != oldValue { applyUserCursorStyle() } }
+    }
+
+    /// The cursor the running program set, if any.
+    private(set) var programCursorStyle: CursorStyle?
+
+    /// Called when the effective cursor changes.
+    var onCursorStyleChange: (() -> Void)?
+
+    private var applyingUserCursorStyle = false
+    private var cursorResetScanner = CursorResetScanner()
+
+    func applyUserCursorStyle() {
+        guard programCursorStyle == nil else { return }
+        applyingUserCursorStyle = true
+        terminal.setCursorStyle(userCursorStyle)
+        applyingUserCursorStyle = false
+    }
+
+    override func cursorStyleChanged(source: Terminal, newStyle: CursorStyle) {
+        if !applyingUserCursorStyle {
+            programCursorStyle = newStyle
+        }
+        super.cursorStyleChanged(source: source, newStyle: newStyle)
+        onCursorStyleChange?()
+    }
+
+    /// Program output: feed it in order, and at each cursor reset go back to
+    /// the user's cursor before carrying on.
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        var start = slice.startIndex
+        for index in slice.indices where cursorResetScanner.consume(slice[index]) {
+            feed(byteArray: slice[start...index])
+            start = index + 1
+            programCursorStyle = nil
+            applyUserCursorStyle()
+            onCursorStyleChange?()
+        }
+        if start < slice.endIndex {
+            feed(byteArray: slice[start..<slice.endIndex])
+        }
+    }
+
     /// SwiftTerm holds its delegate weakly, so keep it alive here.
     private var securityDelegate: TerminalSecurityDelegate?
 
@@ -197,6 +251,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             }
         }
 
+        terminal.onCursorStyleChange = { [weak self] in
+            self?.contentDirty = true
+        }
         terminal.onInvalidate = { [weak self] in
             guard let self, !self.capturing else { return }
             self.contentDirty = true
@@ -260,14 +317,18 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         // With effects on, the cursor is blinked when capturing (the caret's
         // own animation isn't captured); with them off, SwiftTerm blinks it.
+        // The user's cursor; a program's own cursor takes precedence until it
+        // resets (see RetroTerminalView). With effects on, blinking is done
+        // when capturing, so SwiftTerm gets the steady style.
         let blink = profile.blinkingCursor && !showsEffects
-        let style: CursorStyle
         switch ProfileStore.shared.cursorShape {
-        case 1: style = blink ? .blinkUnderline : .steadyUnderline
-        case 2: style = blink ? .blinkBar : .steadyBar
-        default: style = blink ? .blinkBlock : .steadyBlock
+        case 1: terminal.userCursorStyle = blink ? .blinkUnderline : .steadyUnderline
+        case 2: terminal.userCursorStyle = blink ? .blinkBar : .steadyBar
+        default: terminal.userCursorStyle = blink ? .blinkBlock : .steadyBlock
         }
-        terminal.terminal.setCursorStyle(style)
+        // Also covers the first time (SwiftTerm starts with a blinking
+        // block); does nothing while a program's cursor is in effect.
+        terminal.applyUserCursorStyle()
         // Keep the cursor solid when the window isn't focused (SwiftTerm
         // would draw a hollow block), as the Qt app does.
         terminal.caretViewTracksFocus = false
@@ -426,6 +487,16 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     private var lowPowerMode: Bool { ProcessInfo.processInfo.isLowPowerModeEnabled }
 
+    /// Whether the cursor blinks: the program's choice if it set one,
+    /// otherwise the user's setting.
+    private var cursorBlinks: Bool {
+        switch terminal.programCursorStyle {
+        case .some(.blinkBlock), .some(.blinkUnderline), .some(.blinkBar): return true
+        case .some: return false
+        case .none: return profile.blinkingCursor
+        }
+    }
+
     private var effectsFramesPerSecond: Int {
         lowPowerMode ? 12 : max(60 / max(ProfileStore.shared.effectsFrameSkip, 1), 1)
     }
@@ -463,7 +534,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         let now = CACurrentMediaTime()
 
         // Blink the cursor in the captured image (about twice a second).
-        if profile.blinkingCursor {
+        if cursorBlinks {
             let phase = Int(now / 0.53) % 2 == 0
             if phase != cursorBlinkVisible {
                 cursorBlinkVisible = phase
@@ -493,7 +564,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         // Idle: stop animating, or just blink the cursor.
         if ProfileStore.shared.pauseEffectsWhenIdle && now - lastActivity > idleDelay {
-            if profile.blinkingCursor {
+            if cursorBlinks {
                 if view.preferredFramesPerSecond != 4 { view.preferredFramesPerSecond = 4 }
             } else if !pausedForIdle {
                 pausedForIdle = true
@@ -677,3 +748,44 @@ private func smoothStep(_ edge0: Float, _ edge1: Float, _ x: Float) -> Float {
 }
 
 private func opaque(_ c: RGB) -> SIMD4<Float> { SIMD4(c.x, c.y, c.z, 1) }
+
+/// Spots the sequences that mean "back to the default cursor" in a stream
+/// of program output, across chunk boundaries: DECSCUSR 0 or with no
+/// parameter (ESC [ 0 SP q, ESC [ SP q) and a full reset (ESC c).
+struct CursorResetScanner {
+    private enum State { case ground, escape, csi, csiSpace }
+    private var state = State.ground
+    private var parameters: [UInt8] = []
+
+    /// Returns true when `byte` completes a reset sequence.
+    mutating func consume(_ byte: UInt8) -> Bool {
+        switch state {
+        case .ground:
+            if byte == 0x1b { state = .escape }
+        case .escape:
+            if byte == UInt8(ascii: "[") {
+                state = .csi
+                parameters.removeAll(keepingCapacity: true)
+            } else if byte == UInt8(ascii: "c") {
+                state = .ground
+                return true
+            } else {
+                state = byte == 0x1b ? .escape : .ground
+            }
+        case .csi:
+            if (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) || byte == UInt8(ascii: ";") {
+                if parameters.count < 8 { parameters.append(byte) } else { state = .ground }
+            } else if byte == UInt8(ascii: " ") {
+                state = .csiSpace
+            } else {
+                state = byte == 0x1b ? .escape : .ground
+            }
+        case .csiSpace:
+            state = byte == 0x1b ? .escape : .ground
+            if byte == UInt8(ascii: "q") {
+                return parameters.isEmpty || parameters == [UInt8(ascii: "0")]
+            }
+        }
+        return false
+    }
+}

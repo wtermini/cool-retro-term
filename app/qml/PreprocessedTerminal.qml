@@ -138,8 +138,12 @@ Item{
         }
 
         fullCursorHeight: true
-        blinkingCursor: appSettings.blinkingCursor
-        cursorShape: appSettings.cursorShape
+        // A cursor set by the program (e.g. a bar in vim's insert mode) wins
+        // until it asks for the default again or the terminal is reset.
+        property int programCursorShape: -1
+        property bool programCursorBlinking: false
+        blinkingCursor: programCursorShape >= 0 ? programCursorBlinking : appSettings.blinkingCursor
+        cursorShape: programCursorShape >= 0 ? programCursorShape : appSettings.cursorShape
 
         colorScheme: "cool-retro-term"
 
@@ -152,6 +156,11 @@ Item{
 
             onTabColorRequested: (spec) => terminalContainer.tabColorRequested(spec)
             onOutputReceived: timeManager.noteActivity()
+            onProgramCursorChanged: (shape, blinking) => {
+                kterminal.programCursorBlinking = blinking
+                kterminal.programCursorShape = shape
+            }
+            onProgramCursorReset: kterminal.programCursorShape = -1
         }
 
         QMLTermScrollbar {

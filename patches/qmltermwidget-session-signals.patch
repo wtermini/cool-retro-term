@@ -1,8 +1,35 @@
+diff --git a/lib/Emulation.h b/lib/Emulation.h
+index 4338c2c..fd4a918 100644
+--- a/lib/Emulation.h
++++ b/lib/Emulation.h
+@@ -437,6 +437,13 @@ signals:
+    */
+   void cursorChanged(KeyboardCursorShape cursorShape, bool blinkingCursorEnabled);
+ 
++  /**
++   * Emitted when the program asks for the default cursor (DECSCUSR 0) or
++   * the terminal is reset, so the front end can go back to the user's
++   * configured cursor.
++   */
++  void cursorReset();
++
+   void handleCommandFromKeyboard(KeyboardTranslator::Command command);
+   void outputFromKeypressEvent(void);
+ 
 diff --git a/lib/Session.cpp b/lib/Session.cpp
-index 21a265d..93ee015 100644
+index 21a265d..3391493 100644
 --- a/lib/Session.cpp
 +++ b/lib/Session.cpp
-@@ -336,6 +336,13 @@ void Session::setUserTitle( int what, const QString & caption )
+@@ -106,6 +106,8 @@ Session::Session(QObject* parent) :
+             this, SLOT(onViewSizeChange(int, int)));
+     connect(_emulation, &Vt102Emulation::cursorChanged,
+             this, &Session::cursorChanged);
++    connect(_emulation, &Vt102Emulation::cursorReset,
++            this, &Session::cursorReset);
+ 
+     //connect teletype to emulation backend
+     _shellProcess->setUtf8Mode(true);
+@@ -336,6 +338,13 @@ void Session::setUserTitle( int what, const QString & caption )
      //set to true if anything is actually changed (eg. old _nameTitle != new _nameTitle )
      bool modified = false;
  
@@ -17,7 +44,7 @@ index 21a265d..93ee015 100644
      if ((what == 0) || (what == 2)) {
          _isTitleChanged = true;
 diff --git a/lib/Session.h b/lib/Session.h
-index fd4aa4d..ae2bf91 100644
+index fd4aa4d..0b14966 100644
 --- a/lib/Session.h
 +++ b/lib/Session.h
 @@ -414,6 +414,8 @@ public slots:
@@ -29,11 +56,29 @@ index fd4aa4d..ae2bf91 100644
  
      /** Emitted when the terminal process starts. */
      void started();
+@@ -493,6 +495,9 @@ signals:
+      */
+     void cursorChanged(Emulation::KeyboardCursorShape cursorShape, bool blinkingCursorEnabled);
+ 
++    /** Broker for Emulation::cursorReset() */
++    void cursorReset();
++
+     void silence();
+     void activity();
+ 
 diff --git a/lib/Vt102Emulation.cpp b/lib/Vt102Emulation.cpp
-index be82181..bf30344 100644
+index be82181..0b66453 100644
 --- a/lib/Vt102Emulation.cpp
 +++ b/lib/Vt102Emulation.cpp
-@@ -405,6 +405,14 @@ void Vt102Emulation::processWindowAttributeChange()
+@@ -74,6 +74,7 @@ void Vt102Emulation::reset()
+   resetCharset(1);
+   _screen[1]->reset();
+ 
++  emit cursorReset();
+   bufferedUpdate();
+ }
+ 
+@@ -405,6 +406,14 @@ void Vt102Emulation::processWindowAttributeChange()
    // ignored, only the second char in ST ("\e\\") is appended to tokenBuffer.
    QString newValue = QString::fromWCharArray(tokenBuffer + i + 1, tokenBufferPos-i-2);
  
@@ -48,24 +93,38 @@ index be82181..bf30344 100644
    _pendingTitleUpdates[attributeToChange] = newValue;
    _titleUpdateTimer->start(20);
  }
+@@ -638,7 +647,7 @@ void Vt102Emulation::processToken(int token, wchar_t p, int q)
+     case TY_CSI_PS('x',   0) :      reportTerminalParms  (         2); break; //VT100
+     case TY_CSI_PS('x',   1) :      reportTerminalParms  (         3); break; //VT100
+ 
+-    case TY_CSI_PS_SP('q',   0) : /* fall through */
++    case TY_CSI_PS_SP('q',   0) : emit cursorReset(); break;
+     case TY_CSI_PS_SP('q',   1) : emit cursorChanged(KeyboardCursorShape::BlockCursor,     true ); break;
+     case TY_CSI_PS_SP('q',   2) : emit cursorChanged(KeyboardCursorShape::BlockCursor,     false); break;
+     case TY_CSI_PS_SP('q',   3) : emit cursorChanged(KeyboardCursorShape::UnderlineCursor, true ); break;
 diff --git a/lib/ksession.cpp b/lib/ksession.cpp
-index e17ec8a..5913a82 100644
+index e17ec8a..29f5d5b 100644
 --- a/lib/ksession.cpp
 +++ b/lib/ksession.cpp
-@@ -40,6 +40,8 @@ KSession::KSession(QObject *parent) :
+@@ -40,6 +40,13 @@ KSession::KSession(QObject *parent) :
      connect(m_session, SIGNAL(started()), this, SIGNAL(started()));
      connect(m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
      connect(m_session, SIGNAL(titleChanged()), this, SIGNAL(titleChanged()));
 +    connect(m_session, SIGNAL(tabColorRequested(QString)), this, SIGNAL(tabColorRequested(QString)));
 +    connect(m_session, &Konsole::Session::receivedData, this, [this] { emit outputReceived(); });
++    connect(m_session, &Konsole::Session::cursorChanged, this,
++            [this] (Konsole::Emulation::KeyboardCursorShape shape, bool blinking) {
++                emit programCursorChanged(static_cast<int>(shape), blinking);
++            });
++    connect(m_session, &Konsole::Session::cursorReset, this, [this] { emit programCursorReset(); });
  }
  
  KSession::~KSession()
 diff --git a/lib/ksession.h b/lib/ksession.h
-index f4e9d6e..a825ff7 100644
+index f4e9d6e..c6d160b 100644
 --- a/lib/ksession.h
 +++ b/lib/ksession.h
-@@ -127,6 +127,13 @@ signals:
+@@ -127,6 +127,21 @@ signals:
  
      void titleChanged();
  
@@ -75,6 +134,14 @@ index f4e9d6e..a825ff7 100644
 +    /** The program wrote output (without the data, so it costs nothing to
 +     *  connect to). Used to pause animated effects while a terminal is idle. */
 +    void outputReceived();
++
++    /** The program set the cursor (DECSCUSR 1-6): shape 0 block, 1
++     *  underline, 2 bar (I-beam), and whether it blinks. */
++    void programCursorChanged(int shape, bool blinking);
++
++    /** The program asked for the default cursor (DECSCUSR 0) or the
++     *  terminal was reset: go back to the user's cursor setting. */
++    void programCursorReset();
 +
      void historySizeChanged();
  

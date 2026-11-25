@@ -26,11 +26,15 @@ Exposes the cursor shape to QML as `QMLTermWidget.cursorShape` (0 block,
 
 ## qmltermwidget-session-signals.patch
 
-Adds two signals to `QMLTermSession`:
+Adds signals to `QMLTermSession`:
 
 - `outputReceived()`, emitted when the program writes output (without the
-  data). The Qt app uses it to pause its animated effects while every
-  terminal is idle.
+  data). Used by the optional "pause effects when idle".
+- `programCursorChanged(shape, blinking)` and `programCursorReset()`: a
+  program set its own cursor (DECSCUSR 1-6), or asked for the default
+  (DECSCUSR 0) / reset the terminal. Previously these were parsed but never
+  reached the display, and DECSCUSR 0 meant a blinking block rather than the
+  user's cursor.
 - `tabColorRequested(spec)`, described below.
 
 It reports the OSC 6 tab colour escape sequence (`ESC ] 6 ; 1 ; bg ; red ;

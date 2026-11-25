@@ -96,7 +96,10 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   - *Text*: font (bundled retro fonts or any monospaced font on your Mac),
     size, width, line spacing, cursor shape (solid block, underline or
     bar) and the blinking cursor. Both are also in the View menu, and the
-    cursor stays solid when the window isn't focused.
+    cursor stays solid when the window isn't focused. Programs that set
+    their own cursor (such as vim's bar in insert mode) get exactly that
+    until they ask for the default again or reset the terminal, and then
+    your cursor comes back.
   - *Effects*: rasterization, bloom, burn-in, noise, jitter, glowing line,
     curvature, flicker, sync, RGB shift and the frame.
   - *Performance*: effects frame rate and texture, bloom and burn-in quality.
