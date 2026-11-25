@@ -99,6 +99,23 @@ ColumnLayout {
                     onActivated: (index) => appSettings.officeZoom = zooms[index]
                 }
             }
+            RowLayout {
+                Label { text: qsTr("Orbit When Idle") }
+                ComboBox {
+                    readonly property var minutes: [0, 1, 2, 5, 10, 15, 30]
+                    model: [qsTr("Never"), qsTr("After 1 minute"), qsTr("After 2 minutes"), qsTr("After 5 minutes"),
+                            qsTr("After 10 minutes"), qsTr("After 15 minutes"), qsTr("After 30 minutes")]
+                    currentIndex: Math.max(minutes.indexOf(appSettings.officeIdleOrbit), 0)
+                    onActivated: (index) => appSettings.officeIdleOrbit = minutes[index]
+                }
+                ComboBox {
+                    readonly property var speeds: ["slow", "normal", "fast"]
+                    enabled: appSettings.officeIdleOrbit > 0
+                    model: [qsTr("Slow"), qsTr("Normal"), qsTr("Fast")]
+                    currentIndex: Math.max(speeds.indexOf(appSettings.officeIdleOrbitSpeed), 0)
+                    onActivated: (index) => appSettings.officeIdleOrbitSpeed = speeds[index]
+                }
+            }
             CheckBox {
                 text: qsTr("Sticky notes")
                 checked: appSettings.officeStickyNotes

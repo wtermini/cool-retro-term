@@ -121,7 +121,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
         switch pane {
-        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 770))
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 840))
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
         case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 370))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
@@ -194,6 +194,12 @@ final class SettingsModel: ObservableObject {
     }
     var officeZoom: Binding<OfficeZoom> {
         Binding(get: { ProfileStore.shared.officeZoom }, set: { ProfileStore.shared.officeZoom = $0 })
+    }
+    var officeIdleOrbit: Binding<Int> {
+        Binding(get: { ProfileStore.shared.officeIdleOrbit }, set: { ProfileStore.shared.officeIdleOrbit = $0 })
+    }
+    var officeIdleOrbitSpeed: Binding<OfficeOrbitSpeed> {
+        Binding(get: { ProfileStore.shared.officeIdleOrbitSpeed }, set: { ProfileStore.shared.officeIdleOrbitSpeed = $0 })
     }
     var officeStickyNotes: Binding<Bool> {
         Binding(get: { ProfileStore.shared.officeStickyNotes }, set: { ProfileStore.shared.officeStickyNotes = $0 })
@@ -364,6 +370,14 @@ private struct GeneralSettings: View {
                 Picker("View", selection: model.officeZoom) {
                     ForEach(OfficeZoom.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
+                Picker("Orbit when idle", selection: model.officeIdleOrbit) {
+                    Text("Never").tag(0)
+                    ForEach([1, 2, 5, 10, 15, 30], id: \.self) { Text($0 == 1 ? "After 1 minute" : "After \($0) minutes").tag($0) }
+                }
+                Picker("Orbit speed", selection: model.officeIdleOrbitSpeed) {
+                    ForEach(OfficeOrbitSpeed.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .disabled(ProfileStore.shared.officeIdleOrbit == 0)
                 Toggle("Sticky notes", isOn: model.officeStickyNotes)
                 Toggle("Office mode in 3D (a picture of the room when off)", isOn: model.office3D)
                 Toggle("Look around the room (Option-drag, Option-scroll)", isOn: model.officeLookAround)

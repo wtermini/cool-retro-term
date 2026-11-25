@@ -394,6 +394,10 @@ Item {
                     item.monitor = Qt.binding(() => appSettings.officeMonitor)
                     item.zoom = Qt.binding(() => appSettings.officeZoom)
                     item.stickyNotes = Qt.binding(() => appSettings.officeStickyNotes)
+                    item.idleOrbitMinutes = Qt.binding(() => appSettings.officeIdleOrbit)
+                    item.idleOrbitSpeed = Qt.binding(() => appSettings.officeIdleOrbitSpeed)
+                    item.lastUserInput = Qt.binding(() => timeManager.lastUserInput)
+                    item.userInput.connect(() => timeManager.noteUserInput())
                     // The notes' text and the calendar's events.
                     item.deskNotes = Qt.binding(() => officeDesk.notes)
                     item.deskEvents = Qt.binding(() => officeDesk.events)

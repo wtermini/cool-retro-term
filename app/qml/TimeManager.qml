@@ -42,6 +42,14 @@ QtObject {
     readonly property real _start: Date.now()
 
     /// Call on terminal output, key presses and window activation.
+    /// When the user last typed or used the mouse (not program output), in
+    /// milliseconds since the epoch: office mode's idle orbit uses it.
+    property real lastUserInput: Date.now()
+    function noteUserInput() {
+        lastUserInput = Date.now()
+        noteActivity()
+    }
+
     function noteActivity() {
         if (idle)
             idle = false

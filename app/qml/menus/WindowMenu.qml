@@ -93,6 +93,25 @@ MenuBar {
             MenuItem { text: qsTr("Close Up"); checkable: true; checked: appSettings.officeZoom === "close"; onTriggered: appSettings.officeZoom = "close" }
             MenuItem { text: qsTr("At the Desk"); checkable: true; checked: appSettings.officeZoom === "desk"; onTriggered: appSettings.officeZoom = "desk" }
             MenuItem { text: qsTr("Whole Room"); checkable: true; checked: appSettings.officeZoom === "room"; onTriggered: appSettings.officeZoom = "room" }
+            Menu {
+                title: qsTr("Orbit When Idle")
+                Instantiator {
+                    model: [0, 1, 2, 5, 10, 15, 30]
+                    delegate: MenuItem {
+                        text: modelData === 0 ? qsTr("Never") : modelData === 1 ? qsTr("After 1 Minute") : qsTr("After %1 Minutes").arg(modelData)
+                        checkable: true
+                        checked: appSettings.officeIdleOrbit === modelData
+                        onTriggered: appSettings.officeIdleOrbit = modelData
+                    }
+                    onObjectAdded: (index, object) => orbitMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => orbitMenu.removeItem(object)
+                }
+                id: orbitMenu
+                MenuSeparator { }
+                MenuItem { text: qsTr("Slow"); checkable: true; checked: appSettings.officeIdleOrbitSpeed === "slow"; onTriggered: appSettings.officeIdleOrbitSpeed = "slow" }
+                MenuItem { text: qsTr("Normal"); checkable: true; checked: appSettings.officeIdleOrbitSpeed === "normal"; onTriggered: appSettings.officeIdleOrbitSpeed = "normal" }
+                MenuItem { text: qsTr("Fast"); checkable: true; checked: appSettings.officeIdleOrbitSpeed === "fast"; onTriggered: appSettings.officeIdleOrbitSpeed = "fast" }
+            }
             MenuSeparator { }
             MenuItem { text: qsTr("Sticky Notes"); checkable: true; checked: appSettings.officeStickyNotes; onTriggered: appSettings.officeStickyNotes = checked }
             MenuItem { text: qsTr("3D Room"); checkable: true; checked: appSettings.office3D; onTriggered: appSettings.office3D = checked }

@@ -104,7 +104,7 @@ Item{
         // and Command on macOS, so Control is the Control modifier everywhere.)
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (event) => {
-            timeManager.noteActivity()
+            timeManager.noteUserInput()
             if (!appSettings.newLineKeys)
                 return
             if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter)

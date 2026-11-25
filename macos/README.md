@@ -126,6 +126,12 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   - Three views: **Close Up** (the screen fills most of the window), **At
     the Desk** and **Whole Room**. The camera glides between them.
   - **Sticky Notes** turns the notes on the monitor and walls on or off.
+  - **Orbit When Idle**: after a while with no typing or mouse use (Never,
+    or 1 to 30 minutes; 5 by default), the camera slowly swings back and
+    forth around the monitor, like a screensaver, at a Slow, Normal or Fast
+    pace. It stays inside the room, and the next key press or mouse
+    movement glides it back. Program output (Claude Code at work, say)
+    doesn't stop it.
   - With **View ▸ Office Mode ▸ Look Around** on, **Option-drag** looks
     around the room, **Option-scroll** or **pinch** zooms, and
     **Option-double-click** (or Reset View) goes back to the desk; the view

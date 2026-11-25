@@ -58,6 +58,30 @@ enum OfficeMonitor: String, CaseIterable {
     }
 }
 
+/// When the user last typed or used the mouse (not program output), for
+/// office mode's idle orbit.
+@MainActor
+enum UserActivity {
+    static var lastInput = CACurrentMediaTime()
+    static func note() { lastInput = CACurrentMediaTime() }
+}
+
+/// How fast office mode's idle orbit swings. Shared with the Qt app
+/// (`officeIdleOrbitSpeed` in its settings).
+enum OfficeOrbitSpeed: String, CaseIterable {
+    case slow, normal, fast
+
+    var title: String { rawValue.capitalized }
+    /// The fastest the camera turns, in degrees a second.
+    var peakDegreesPerSecond: Float {
+        switch self {
+        case .slow: return 2
+        case .normal: return 4
+        case .fast: return 8
+        }
+    }
+}
+
 /// How far back the office mode camera starts. Shared with the Qt app
 /// (`officeZoom` in its settings).
 enum OfficeZoom: String, CaseIterable {
@@ -399,9 +423,38 @@ final class OfficeSceneView: SCNView {
         updateCamera()
     }
 
+    // Idle orbit: after idleOrbitMinutes with no typing or mouse use (0 =
+    // never), the camera swings slowly back and forth around the monitor,
+    // and glides back on the next key press or mouse movement.
+    var idleOrbitMinutes = 0
+    var idleOrbitSpeed = OfficeOrbitSpeed.normal
+    private var orbitProgress: Float = 0   // 0 at rest, 1 orbiting
+    private var orbitPhase: Float = 0
+    private var lastTick: Float = 0
+
+    var isIdleOrbitDue: Bool {
+        idleOrbitMinutes > 0 && CACurrentMediaTime() - UserActivity.lastInput > Double(idleOrbitMinutes) * 60
+    }
+
+    /// How far it swings: less when the camera is far back, so it stays
+    /// inside the room (the cubicle's walls are about 90 cm to each side).
+    private var orbitAmplitude: Float {
+        min(35, asin(min(1, 75 / max(distance, 1))) * 180 / .pi)
+    }
+
+    /// Eased 0...1, as the Qt app's InOutSine.
+    private var orbitAmount: Float { (1 - cos(.pi * orbitProgress)) / 2 }
+
     /// Called at the effects frame rate, with seconds since launch.
     func tick(time: Double) {
+        let dt = min(max(Float(time) - lastTick, 0), 0.5)
+        lastTick = Float(time)
         self.time = Float(time)
+        orbitProgress = clamp(orbitProgress + (isIdleOrbitDue ? dt : -dt) / 2.5, 0, 1)
+        if orbitProgress > 0 {
+            // yaw = amplitude * sin(phase): the peak speed is amplitude * dphase/dt.
+            orbitPhase += dt * idleOrbitSpeed.peakDegreesPerSecond / max(orbitAmplitude, 1)
+        }
         if calendarDay != OfficeDesk.today() { drawDesk() }   // turn the page at midnight
         distance += (targetDistance - distance) * 0.35
         if abs(targetDistance - distance) < 0.05 { distance = targetDistance }
@@ -547,7 +600,9 @@ final class OfficeSceneView: SCNView {
         guard let camera = room?.camera else { return }
         let motion: Float = lookAround ? 1 : 0
         let effectiveYaw = yaw + (1.2 * sin(time * 0.11) + pointer.x * 3) * motion
+            + orbitAmount * orbitAmplitude * sin(orbitPhase)
         let effectivePitch = pitch + (0.6 * sin(time * 0.17) - pointer.y * 2) * motion
+            + orbitAmount * 5 * sin(orbitPhase * 0.62)
         let yawRad = effectiveYaw * .pi / 180
         let pitchRad = effectivePitch * .pi / 180
         let target = vector(camera.target)
@@ -585,6 +640,7 @@ final class OfficeSceneView: SCNView {
     private func clamp(_ v: Float, _ lo: Float, _ hi: Float) -> Float { min(max(v, lo), hi) }
 
     override func mouseDown(with event: NSEvent) {
+        UserActivity.note()
         if lookAround, event.modifierFlags.contains(.option) {
             if event.clickCount == 2 {
                 resetView()
@@ -651,6 +707,7 @@ final class OfficeSceneView: SCNView {
     override func otherMouseUp(with event: NSEvent) { forward(event) }
 
     override func scrollWheel(with event: NSEvent) {
+        UserActivity.note()
         if lookAround, event.modifierFlags.contains(.option), let camera = room?.camera {
             let delta = Float(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 30 : event.scrollingDeltaY)
             targetDistance = clamp(targetDistance * pow(0.9, delta), camera.minDistance, camera.maxDistance)
@@ -661,6 +718,7 @@ final class OfficeSceneView: SCNView {
     }
 
     override func magnify(with event: NSEvent) {
+        UserActivity.note()
         guard lookAround, let camera = room?.camera else { return }
         targetDistance = clamp(targetDistance / Float(1 + event.magnification), camera.minDistance, camera.maxDistance)
         updateCamera()
@@ -674,6 +732,7 @@ final class OfficeSceneView: SCNView {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        UserActivity.note()
         let point = convert(event.locationInWindow, from: nil)
         if lookAround {
             pointer = SIMD2(clamp(Float(point.x / max(bounds.width, 1)) * 2 - 1, -1, 1),

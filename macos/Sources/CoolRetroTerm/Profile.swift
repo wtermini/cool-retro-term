@@ -259,6 +259,8 @@ final class ProfileStore {
     private(set) var sharedOfficeMonitor = OfficeMonitor.wide
     private(set) var sharedOfficeZoom = OfficeZoom.desk
     private(set) var sharedOfficeStickyNotes = true
+    private(set) var sharedOfficeIdleOrbit = 5
+    private(set) var sharedOfficeIdleOrbitSpeed = OfficeOrbitSpeed.normal
     private(set) var sharedOfficeLookAround = true
 
     private init() {
@@ -326,6 +328,8 @@ final class ProfileStore {
         sharedOfficeMonitor = settings["officeMonitor"] as? String == "standard" ? .standard : .wide
         sharedOfficeZoom = (settings["officeZoom"] as? String).flatMap(OfficeZoom.init(rawValue:)) ?? .desk
         if let b = settings["officeStickyNotes"] as? Bool { sharedOfficeStickyNotes = b }
+        if let n = settings["officeIdleOrbit"] as? NSNumber { sharedOfficeIdleOrbit = min(max(n.intValue, 0), 60) }
+        sharedOfficeIdleOrbitSpeed = (settings["officeIdleOrbitSpeed"] as? String).flatMap(OfficeOrbitSpeed.init(rawValue:)) ?? .normal
         if let override = CIHooks.value("CRT_OFFICE_MONITOR"),
            let monitor = OfficeMonitor(rawValue: override) {
             sharedOfficeMonitor = monitor   // used for CI screenshots
@@ -566,6 +570,18 @@ final class ProfileStore {
     var officeStickyNotes: Bool {
         get { sharedOfficeStickyNotes }
         set { sharedOfficeStickyNotes = newValue; writeAppSetting("officeStickyNotes", newValue) }
+    }
+
+    /// Office mode: orbit after this many minutes without typing or mouse
+    /// use; 0 = never. Shared with the Qt app.
+    var officeIdleOrbit: Int {
+        get { sharedOfficeIdleOrbit }
+        set { sharedOfficeIdleOrbit = min(max(newValue, 0), 60); writeAppSetting("officeIdleOrbit", sharedOfficeIdleOrbit) }
+    }
+
+    var officeIdleOrbitSpeed: OfficeOrbitSpeed {
+        get { sharedOfficeIdleOrbitSpeed }
+        set { sharedOfficeIdleOrbitSpeed = newValue; writeAppSetting("officeIdleOrbitSpeed", newValue.rawValue) }
     }
 
     /// Let the user move the camera in the 3D room. Shared with the Qt app.

@@ -89,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// Cmd-1 to Cmd-9 switch tabs; Shift- and Control-Return insert new lines.
     private func installTabShortcuts() {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated { UserActivity.note() }   // ends office mode's idle orbit
             let shiftReturnHandled: Bool = MainActor.assumeIsolated {
                 (event.window?.firstResponder as? RetroTerminalView)?.handleModifiedReturn(event) ?? false
             }
@@ -162,6 +163,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func chooseOfficeZoom(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let zoom = OfficeZoom(rawValue: raw) else { return }
         ProfileStore.shared.officeZoom = zoom
+    }
+
+    @objc func chooseOfficeIdleOrbit(_ sender: NSMenuItem) {
+        ProfileStore.shared.officeIdleOrbit = sender.tag
+    }
+
+    @objc func chooseOfficeIdleOrbitSpeed(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let speed = OfficeOrbitSpeed(rawValue: raw) else { return }
+        ProfileStore.shared.officeIdleOrbitSpeed = speed
     }
 
     @objc func toggleOfficeStickyNotes(_ sender: Any?) {
@@ -277,6 +287,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeMonitor.rawValue ? .on : .off
         case #selector(chooseOfficeZoom(_:)):
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeZoom.rawValue ? .on : .off
+        case #selector(chooseOfficeIdleOrbit(_:)):
+            menuItem.state = menuItem.tag == ProfileStore.shared.officeIdleOrbit ? .on : .off
+        case #selector(chooseOfficeIdleOrbitSpeed(_:)):
+            menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeIdleOrbitSpeed.rawValue ? .on : .off
+            return ProfileStore.shared.officeIdleOrbit > 0
         case #selector(toggleOfficeStickyNotes(_:)):
             menuItem.state = ProfileStore.shared.officeStickyNotes ? .on : .off
         case #selector(toggleOffice3D(_:)):
@@ -434,6 +449,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             office.addItem(entry)
         }
         office.addItem(.separator())
+        let orbit = NSMenu(title: "Orbit When Idle")
+        for minutes in [0, 1, 2, 5, 10, 15, 30] {
+            let title = minutes == 0 ? "Never" : minutes == 1 ? "After 1 Minute" : "After \(minutes) Minutes"
+            let entry = item(title, #selector(chooseOfficeIdleOrbit(_:)))
+            entry.tag = minutes
+            orbit.addItem(entry)
+        }
+        orbit.addItem(.separator())
+        for speed in OfficeOrbitSpeed.allCases {
+            let entry = item(speed.title, #selector(chooseOfficeIdleOrbitSpeed(_:)))
+            entry.representedObject = speed.rawValue
+            orbit.addItem(entry)
+        }
+        office.addItem(withTitle: "Orbit When Idle", action: nil, keyEquivalent: "").submenu = orbit
         office.addItem(item("Sticky Notes", #selector(toggleOfficeStickyNotes(_:))))
         office.addItem(item("3D Room", #selector(toggleOffice3D(_:))))
         office.addItem(item("Look Around", #selector(toggleOfficeLookAround(_:))))

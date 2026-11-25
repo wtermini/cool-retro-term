@@ -54,6 +54,8 @@ QtObject {
     property bool officeLookAround: true       // move the camera in the 3D room
     property string officeZoom: "desk"         // office mode view: "close", "desk" or "room"
     property bool officeStickyNotes: true      // sticky notes on the monitor and walls
+    property int officeIdleOrbit: 5            // office mode: orbit after this many idle minutes, 0 = never
+    property string officeIdleOrbitSpeed: "normal"  // "slow", "normal" or "fast"
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
@@ -189,6 +191,8 @@ QtObject {
             "officeLookAround": officeLookAround,
             "officeZoom": officeZoom,
             "officeStickyNotes": officeStickyNotes,
+            "officeIdleOrbit": officeIdleOrbit,
+            "officeIdleOrbitSpeed": officeIdleOrbitSpeed,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -288,6 +292,8 @@ QtObject {
         officeLookAround = settings.officeLookAround !== undefined ? settings.officeLookAround : officeLookAround
         officeZoom = ["close", "desk", "room"].indexOf(settings.officeZoom) >= 0 ? settings.officeZoom : "desk"
         officeStickyNotes = settings.officeStickyNotes !== undefined ? settings.officeStickyNotes : officeStickyNotes
+        officeIdleOrbit = settings.officeIdleOrbit !== undefined ? Math.max(0, Math.min(60, Math.round(settings.officeIdleOrbit))) : officeIdleOrbit
+        officeIdleOrbitSpeed = ["slow", "normal", "fast"].indexOf(settings.officeIdleOrbitSpeed) >= 0 ? settings.officeIdleOrbitSpeed : "normal"
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality

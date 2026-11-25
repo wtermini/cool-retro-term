@@ -392,6 +392,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         officeView.show(officeActive ? store.officeScene : .off, monitor: store.officeMonitor)
         officeView.lookAround = store.officeLookAround
         officeView.zoom = store.officeZoom
+        officeView.idleOrbitMinutes = store.officeIdleOrbit
+        officeView.idleOrbitSpeed = store.officeIdleOrbitSpeed
         officeView.stickyNotes = store.officeStickyNotes
         officePicture.zoom = store.officeZoom
         officePicture.show(officePictureActive ? store.officeScene : .off, monitor: store.officeMonitor,
@@ -672,7 +674,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         }
 
         // Idle: stop animating, or just blink the cursor.
-        if ProfileStore.shared.pauseEffectsWhenIdle && now - lastActivity > idleDelay {
+        // (Not in 3D office mode with the idle orbit on: the room keeps moving.)
+        if ProfileStore.shared.pauseEffectsWhenIdle && now - lastActivity > idleDelay
+            && !(officeActive && ProfileStore.shared.officeIdleOrbit > 0) {
             if cursorBlinks {
                 // Office mode keeps its frame rate; the room is moving anyway.
                 if !officeActive, overlay.preferredFramesPerSecond != 4 { overlay.preferredFramesPerSecond = 4 }

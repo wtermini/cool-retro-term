@@ -50,6 +50,51 @@ View3D {
     property bool lookAround: true
     /// Show the sticky notes.
     property bool stickyNotes: true
+
+    // Idle orbit: after idleOrbitMinutes with no typing or mouse use (0 =
+    // never), the camera swings slowly back and forth around the monitor,
+    // and glides back on the next key press or mouse movement.
+    property int idleOrbitMinutes: 0
+    /// "slow", "normal" or "fast".
+    property string idleOrbitSpeed: "normal"
+    /// When the user last typed or used the mouse (ms since the epoch).
+    property real lastUserInput: Date.now()
+    /// Called on mouse use in the room; key presses come from the terminal.
+    signal userInput()
+    readonly property bool idleOrbiting: idleOrbitMinutes > 0 && !pictureView && orbitClock.idle
+    /// 0 at rest, 1 while orbiting; eases between the two.
+    property real orbitAmount: idleOrbiting ? 1 : 0
+    Behavior on orbitAmount { NumberAnimation { duration: 2500; easing.type: Easing.InOutSine } }
+    property real orbitPhase: 0
+    property real lastOrbitTime: 0
+    /// How far it swings: less when the camera is far back, so it stays
+    /// inside the room (the cubicle's walls are about 90 cm to each side).
+    readonly property real orbitAmplitude: Math.min(35, Math.asin(Math.min(1, 75 / Math.max(distance, 1))) * 180 / Math.PI)
+    onTimeChanged: {
+        const dt = Math.min(Math.max(time - lastOrbitTime, 0), 0.5)
+        lastOrbitTime = time
+        if (orbitAmount > 0) {
+            const peak = idleOrbitSpeed === "slow" ? 2 : idleOrbitSpeed === "fast" ? 8 : 4   // degrees a second
+            // yaw = amplitude * sin(phase), so the peak speed is amplitude * dphase/dt.
+            orbitPhase += dt * peak / Math.max(orbitAmplitude, 1)
+        }
+    }
+    Timer {
+        id: orbitClock
+        property bool idle: false
+        interval: 1000
+        repeat: true
+        running: view.idleOrbitMinutes > 0 && !view.pictureView
+        onTriggered: {
+            idle = Date.now() - view.lastUserInput > view.idleOrbitMinutes * 60000
+            // Keep the effects (and so the room) animating while the orbit
+            // is due, even with "pause effects when idle" on.
+            if (typeof timeManager !== "undefined")
+                timeManager.noteActivity()
+        }
+        onRunningChanged: if (!running) idle = false
+    }
+    onLastUserInputChanged: orbitClock.idle = false
     /// The desk (officeDesk.notes and officeDesk.events). When set, the
     /// sticky notes go on the room's note places in order, and the calendar
     /// shows the events; otherwise (the 2D pictures) the first three places
@@ -150,8 +195,10 @@ View3D {
         readonly property real motion: view.moving ? 1 : 0
         readonly property real drift: 1.2 * Math.sin(view.time * 0.11) * motion
         readonly property real driftPitch: 0.6 * Math.sin(view.time * 0.17) * motion
-        readonly property real effectiveYaw: view.yaw + drift + view.pointerX * 3 * motion
-        readonly property real effectivePitch: view.pitch + driftPitch - view.pointerY * 2 * motion
+        readonly property real orbitYaw: view.orbitAmount * view.orbitAmplitude * Math.sin(view.orbitPhase)
+        readonly property real orbitPitch: view.orbitAmount * 5 * Math.sin(view.orbitPhase * 0.62)
+        readonly property real effectiveYaw: view.yaw + drift + view.pointerX * 3 * motion + orbitYaw
+        readonly property real effectivePitch: view.pitch + driftPitch - view.pointerY * 2 * motion + orbitPitch
         readonly property var orientation: view.mul(view.axisAngle(1, effectiveYaw), view.axisAngle(0, effectivePitch))
         readonly property var target: view.viewInfo ? view.viewInfo.target : [0, 0, 0]
         readonly property real yawRad: effectiveYaw * Math.PI / 180
@@ -412,6 +459,10 @@ View3D {
         enabled: view.moving
         acceptedModifiers: Qt.AltModifier
         onDoubleTapped: view.resetView()
+    }
+    // Any mouse use in the room ends the idle orbit.
+    HoverHandler {
+        onPointChanged: view.userInput()
     }
     HoverHandler {
         enabled: view.moving
