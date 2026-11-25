@@ -1,6 +1,6 @@
 #!/bin/sh
-# Renders office mode's 2D fallback pictures (app/qml/office/office-80s.jpg
-# and office-90s.jpg) from the 3D rooms, seen straight on, with Qt Quick 3D.
+# Renders office mode's 2D fallback pictures (app/qml/office/office-*.jpg)
+# from the 3D rooms, seen straight on, with Qt Quick 3D.
 # Run scripts/generate-office-scenes.py first. Needs Qt 6 with Qt Quick 3D,
 # Python with Pillow, and a display (or xvfb-run, used when there's none).
 set -e
@@ -15,7 +15,7 @@ fi
 # Some Qt versions crash on exit after rendering, so check for the output
 # instead of the exit status.
 eval "${RUN:-}" '"$QML" "$REPO/scripts/render-office-pictures.qml" -- "$TMP"' || true
-for scene in 80s 90s; do
+for scene in 80s-standard 80s-wide 90s-standard 90s-wide; do
     [ -f "$TMP/office-$scene.png" ] || { echo "rendering office-$scene failed" >&2; exit 1; }
     python3 -c "
 import sys

@@ -25,8 +25,6 @@
         <file>images/crt256.png</file>
         <file>OfficeScene.qml</file>
         <file>OfficePicture.qml</file>
-        <file>office/office-90s.jpg</file>
-        <file>office/office-80s.jpg</file>
         <file>office/blinds.jpg</file>
         <file>office/calendar.jpg</file>
         <file>office/ceiling-80s.jpg</file>
@@ -40,8 +38,14 @@
         <file>office/keyboard-grey.png</file>
         <file>office/laminate.jpg</file>
         <file>office/memo.jpg</file>
-        <file>office/office-80s.json</file>
-        <file>office/office-90s.json</file>
+        <file>office/office-80s-standard.jpg</file>
+        <file>office/office-80s-standard.json</file>
+        <file>office/office-80s-wide.jpg</file>
+        <file>office/office-80s-wide.json</file>
+        <file>office/office-90s-standard.jpg</file>
+        <file>office/office-90s-standard.json</file>
+        <file>office/office-90s-wide.jpg</file>
+        <file>office/office-90s-wide.json</file>
         <file>office/office-carpet.jpg</file>
         <file>office/office-wall.jpg</file>
         <file>office/poster.jpg</file>

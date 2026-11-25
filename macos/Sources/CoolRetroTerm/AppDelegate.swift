@@ -154,6 +154,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeScene = scene
     }
 
+    @objc func chooseOfficeMonitor(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let monitor = OfficeMonitor(rawValue: raw) else { return }
+        ProfileStore.shared.officeMonitor = monitor
+    }
+
     @objc func toggleOffice3D(_ sender: Any?) {
         ProfileStore.shared.office3D.toggle()
     }
@@ -249,6 +254,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
         case #selector(chooseOfficeScene(_:)):
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeScene.rawValue ? .on : .off
+        case #selector(chooseOfficeMonitor(_:)):
+            menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeMonitor.rawValue ? .on : .off
         case #selector(toggleOffice3D(_:)):
             menuItem.state = ProfileStore.shared.office3D ? .on : .off
         case #selector(toggleOfficeLookAround(_:)):
@@ -389,6 +396,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         for scene in OfficeScene.allCases {
             let entry = item(scene.title, #selector(chooseOfficeScene(_:)))
             entry.representedObject = scene.rawValue
+            office.addItem(entry)
+        }
+        office.addItem(.separator())
+        for monitor in OfficeMonitor.allCases {
+            let entry = item(monitor.title, #selector(chooseOfficeMonitor(_:)))
+            entry.representedObject = monitor.rawValue
             office.addItem(entry)
         }
         office.addItem(.separator())

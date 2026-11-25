@@ -29,7 +29,7 @@ import QtQuick3D
 /// Where 3D isn't available, or it's turned off, OfficePicture.qml shows a
 /// picture of the same room instead.
 ///
-/// The rooms are described in office/office-<scene>.json, made by
+/// The rooms are described in office/office-<scene>-<monitor>.json, made by
 /// scripts/generate-office-scenes.py and shared with Cool Retro Term SE,
 /// which builds the same rooms with SceneKit (OfficeScene.swift).
 View3D {
@@ -37,6 +37,10 @@ View3D {
 
     /// "80s" or "90s".
     property string scene: "80s"
+    /// "standard" (4:3) or "wide" (16:10).
+    property string monitor: "wide"
+    /// The screen's width over its height, for laying out the terminal.
+    readonly property real screenAspect: room.screen ? room.screen.size[0] / room.screen.size[1] : 4 / 3
     /// The item shown on the monitor's screen (the terminal).
     property Item screenItem
     /// Seconds, for the gentle camera drift.
@@ -80,10 +84,11 @@ View3D {
                 view.resetView()
             }
         }
-        request.open("GET", Qt.resolvedUrl("office/office-" + scene + ".json"))
+        request.open("GET", Qt.resolvedUrl("office/office-" + scene + "-" + monitor + ".json"))
         request.send()
     }
     onSceneChanged: load()
+    onMonitorChanged: load()
     Component.onCompleted: load()
 
     function vec(a) { return Qt.vector3d(a[0], a[1], a[2]) }

@@ -389,9 +389,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             ? NSColor.black.cgColor
             : NSColor(rgb: profile.effectiveBackgroundColor).cgColor
 
-        officeView.show(officeActive ? store.officeScene : .off)
+        officeView.show(officeActive ? store.officeScene : .off, monitor: store.officeMonitor)
         officeView.lookAround = store.officeLookAround
-        officePicture.show(officePictureActive ? store.officeScene : .off)
+        officePicture.show(officePictureActive ? store.officeScene : .off, monitor: store.officeMonitor)
         officeView.glowColor = NSColor(rgb: profile.effectiveFontColor)
         overlay.isHidden = !showsEffects || officeActive
         terminal.suppressesOwnDrawing = showsEffects
@@ -470,15 +470,16 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     }
 
     /// The part of the view the CRT image covers: all of it; in 3D office
-    /// mode a 4:3 screen in the middle (shown on the monitor, not directly);
+    /// mode a screen of the monitor's shape in the middle (shown on the monitor, not directly);
     /// in 2D office mode the monitor's screen in the picture.
     private var screenRect: CGRect {
         if officePictureActive {
             return officePicture.layoutPicture() ?? bounds
         }
         guard officeActive else { return bounds }
-        let height = min(bounds.height, bounds.width * 3 / 4)
-        let width = height * 4 / 3
+        let aspect = officeView.screenAspect
+        let height = min(bounds.height, bounds.width / aspect)
+        let width = height * aspect
         return CGRect(x: (bounds.width - width) / 2, y: (bounds.height - height) / 2,
                       width: width, height: height).integral
     }

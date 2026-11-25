@@ -115,6 +115,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   or a **90s Cubicle** (fabric partitions, fluorescent lights, sticky notes).
   The terminal keeps working as usual on the monitor's screen, which gives
   off light in the profile's colour.
+  - Pick the monitor in View ▸ Office Mode: a **Widescreen Monitor
+    (16:10)**, a big, deep workstation CRT on a base plate (the default), or
+    a **Standard Monitor (4:3)**.
   - With **View ▸ Office Mode ▸ Look Around** on, **Option-drag** looks
     around the room, **Option-scroll** or **pinch** zooms, and
     **Option-double-click** (or Reset View) goes back to the desk; the view
@@ -123,8 +126,8 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   - The room is drawn in 3D with SceneKit on Metal. Turn off **3D Room** (or
     on a Mac without Metal) for a picture of the same room instead, with the
     terminal over the monitor's screen.
-  - The terminal is a 4:3 screen in office mode, and the CRT effects are
-    always on.
+  - The terminal takes the monitor's shape (16:10 or 4:3) in office mode,
+    and the CRT effects are always on.
   - The 3D room is drawn at the effects frame rate, and stops with the
     effects when the window is hidden.
   - Also in Settings ▸ General, and shared with the Qt app (View ▸ Office

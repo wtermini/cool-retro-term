@@ -256,6 +256,7 @@ final class ProfileStore {
     private(set) var sharedCursorShape = 0
     private(set) var sharedOfficeScene = OfficeScene.off
     private(set) var sharedOffice3D = true
+    private(set) var sharedOfficeMonitor = OfficeMonitor.wide
     private(set) var sharedOfficeLookAround = true
 
     private init() {
@@ -320,6 +321,11 @@ final class ProfileStore {
         if let n = settings["cursorShape"] as? NSNumber { sharedCursorShape = min(max(n.intValue, 0), 2) }
         sharedOfficeScene = OfficeScene(rawValue: settings["officeScene"] as? String ?? "") ?? .off
         if let b = settings["office3D"] as? Bool { sharedOffice3D = b }
+        sharedOfficeMonitor = settings["officeMonitor"] as? String == "standard" ? .standard : .wide
+        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_MONITOR"],
+           let monitor = OfficeMonitor(rawValue: override) {
+            sharedOfficeMonitor = monitor   // used for CI screenshots
+        }
         if let b = settings["officeLookAround"] as? Bool { sharedOfficeLookAround = b }
         if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_3D"] {
             sharedOffice3D = override != "0"   // used for CI screenshots
@@ -538,6 +544,12 @@ final class ProfileStore {
     var office3D: Bool {
         get { sharedOffice3D }
         set { sharedOffice3D = newValue; writeAppSetting("office3D", newValue) }
+    }
+
+    /// The monitor in office mode. Shared with the Qt app.
+    var officeMonitor: OfficeMonitor {
+        get { sharedOfficeMonitor }
+        set { sharedOfficeMonitor = newValue; writeAppSetting("officeMonitor", newValue.rawValue) }
     }
 
     /// Let the user move the camera in the 3D room. Shared with the Qt app.

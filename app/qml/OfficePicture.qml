@@ -28,7 +28,9 @@ Item {
 
     /// "80s" or "90s".
     property string scene: "80s"
-    property var info: null   // the "picture" part of office/office-<scene>.json
+    /// "standard" (4:3) or "wide" (16:10).
+    property string monitor: "wide"
+    property var info: null   // the "picture" part of office/office-<scene>-<monitor>.json
 
     function load() {
         const request = new XMLHttpRequest()
@@ -36,10 +38,11 @@ Item {
             if (request.readyState === XMLHttpRequest.DONE && request.responseText)
                 picture.info = JSON.parse(request.responseText).picture
         }
-        request.open("GET", Qt.resolvedUrl("office/office-" + scene + ".json"))
+        request.open("GET", Qt.resolvedUrl("office/office-" + scene + "-" + monitor + ".json"))
         request.send()
     }
     onSceneChanged: load()
+    onMonitorChanged: load()
     Component.onCompleted: load()
 
     readonly property size imageSize: info ? Qt.size(info.size[0], info.size[1]) : Qt.size(1, 1)

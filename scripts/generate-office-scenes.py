@@ -22,11 +22,12 @@
 Office mode shows the terminal as the screen of a monitor on a desk in a 3D
 room you can look around. This script writes, into app/qml/office/:
 
-- office-80s.json and office-90s.json: the rooms, as a list of simple shapes
+- office-<room>-<monitor>.json, for the 80s and 90s rooms with a standard
+  (4:3) or widescreen (16:10) monitor: the rooms, as a list of simple shapes
   (boxes, cylinders, spheres and flat panels) with materials, plus the
   lights, the camera and where the screen is;
 - the textures they use (wood, carpet, fabric, a poster and so on);
-- office-80s.jpg and office-90s.jpg: the rooms seen straight on, used when
+- office-<room>-<monitor>.jpg: the rooms seen straight on, used when
   3D isn't available or is turned off. These are rendered from the rooms by
   scripts/render-office-pictures.sh (with Qt Quick 3D), after this script.
 
@@ -320,30 +321,77 @@ def ceiling_light():
 # -------------------------------------------------------------- the rooms ---
 
 DESK_Y = 75                        # height of the desk surface
-SCREEN_W, SCREEN_H = 29.6, 22.2    # 4:3 tube
-SCREEN_Y = DESK_Y + 27.5
-SCREEN_Z = -41.6
 
 
-def add_monitor(sc, casing, casing_dark, sticky_notes=()):
-    """A 14-inch CRT monitor on a swivel stand, screen facing +Z."""
-    sc.cylinder((0, DESK_Y + 1, -55), 24, 2, casing_dark, roughness=0.5)
-    sc.box((0, DESK_Y + 4.5, -55), (12, 5, 12), casing_dark, roughness=0.5)
-    # Front bezel and the tapered back of the tube.
-    sc.box((0, SCREEN_Y - 1.5, -46), (40, 36, 8.5), casing, roughness=0.45)
-    sc.box((0, SCREEN_Y - 0.5, -57), (35, 31, 14), casing, roughness=0.5)
-    sc.box((0, SCREEN_Y + 0.5, -69), (27, 23, 12), casing_dark, roughness=0.55)
-    for i in range(9):
-        sc.box((-12 + i * 3, SCREEN_Y + 14.6, -58), (1.2, 0.4, 9), "#2a2824", shadows=False)
-    # Dark surround of the tube (the tube itself is "screen" in the scene).
-    sc.box((0, SCREEN_Y, -42.0), (SCREEN_W + 2.6, SCREEN_H + 2.6, 0.6), "#141412", roughness=0.3)
-    # Chin: badge, power button and LED.
-    chin = SCREEN_Y - SCREEN_H / 2 - 6
-    sc.box((-13, chin, -41.6), (7, 1.2, 0.3), casing_dark)
-    sc.box((14, chin, -41.6), (3, 1.6, 0.8), casing_dark)
-    sc.sphere((10, chin, -41.6), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
+class Monitor:
+    """The monitor on the desk: the screen's size and where it is, and the
+    outline that must stay in view in the 2D picture."""
+
+    def __init__(self, name, w, h, y, z, half_width, top, distance):
+        self.name = name
+        self.w, self.h = w, h          # visible tube
+        self.y, self.z = y, z          # middle of the screen
+        self.half_width = half_width   # of the casing
+        self.top = top                 # top of the casing
+        self.distance = distance       # starting camera distance
+
+
+# A 14-inch 4:3 monitor on a swivel stand.
+STANDARD = Monitor("standard", 29.6, 22.2, DESK_Y + 27.5, -41.6, 20, DESK_Y + 44, 95)
+# A 24-inch 16:10 workstation monitor on a base plate: big, deep and heavy.
+WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 28, -29.6, 28, DESK_Y + 47, 110)
+
+
+def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
+    """The monitor, screen facing +Z. Sticky notes are (x, y, rotation,
+    texture), relative to the top left corner of the casing."""
+    sy, sz = mon.y, mon.z
+    if mon is WIDE:
+        # Dark base plate and swivel.
+        sc.box((0, DESK_Y + 1.5, -52), (46, 3, 40), "#2a2a2c", roughness=0.45)
+        sc.box((0, DESK_Y + 4, -50), (20, 3, 16), "#323234", roughness=0.45)
+        # Bezel, then the long tapered back of the tube.
+        sc.box((0, sy - 2, sz - 4.0), (56, 42, 7), casing, roughness=0.4)
+        sc.box((0, sy - 1.5, sz - 14.4), (53, 39, 15.5), casing, roughness=0.45)
+        sc.box((0, sy - 1, sz - 30), (45, 33, 16), casing, roughness=0.5)
+        sc.box((0, sy - 0.5, sz - 44), (35, 25, 13), casing_dark, roughness=0.55)
+        for i in range(14):
+            sc.box((-19.5 + i * 3, sy + 17.6, sz - 30), (1.0, 0.3, 12), casing_dark, shadows=False)
+        sc.box((0, sy, sz - 0.6), (mon.w + 3, mon.h + 3, 0.6), "#141412", roughness=0.3)
+        chin = sy - mon.h / 2 - 5.5
+        sc.box((-20, chin, sz - 0.4), (9, 1.2, 0.3), casing_dark)
+        for i in range(4):
+            sc.box((8 + i * 3.2, chin, sz - 0.3), (2.2, 1.2, 0.6), casing_dark)
+        sc.box((23, chin, sz - 0.3), (3, 1.6, 0.8), casing_dark)
+        sc.sphere((20, chin, sz - 0.3), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
+    else:
+        sc.cylinder((0, DESK_Y + 1, -55), 24, 2, casing_dark, roughness=0.5)
+        sc.box((0, DESK_Y + 4.5, -55), (12, 5, 12), casing_dark, roughness=0.5)
+        sc.box((0, sy - 1.5, sz - 4.75), (40, 36, 8.5), casing, roughness=0.45)
+        sc.box((0, sy - 0.5, sz - 15.4), (35, 31, 14), casing, roughness=0.5)
+        sc.box((0, sy + 0.5, sz - 27.4), (27, 23, 12), casing_dark, roughness=0.55)
+        for i in range(9):
+            sc.box((-12 + i * 3, sy + 14.6, sz - 16.4), (1.0, 0.3, 9), casing_dark, shadows=False)
+        sc.box((0, sy, sz - 0.6), (mon.w + 2.6, mon.h + 2.6, 0.6), "#141412", roughness=0.3)
+        chin = sy - mon.h / 2 - 6
+        sc.box((-13, chin, sz - 0.4), (7, 1.2, 0.3), casing_dark)
+        sc.box((14, chin, sz - 0.3), (3, 1.6, 0.8), casing_dark)
+        sc.sphere((10, chin, sz - 0.3), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
     for x, y, rot, tex in sticky_notes:
-        sc.plane((x, y, -41.65), 6, 6, rotation=(0, 0, rot), texture=tex, shadows=False)
+        sc.plane((-mon.half_width + x, mon.top - y, sz - 0.35), 6, 6, rotation=(0, 0, rot), texture=tex,
+                 shadows=False)
+
+
+def add_old_monitor(sc, x, z, yaw, casing, casing_dark):
+    """A small, older monitor, switched off, turned towards the chair."""
+    a = math.radians(yaw)
+
+    def at(dx, dy, dz):   # local offset to world, turned by yaw about Y
+        return (x + dx * math.cos(a) + dz * math.sin(a), DESK_Y + dy, z - dx * math.sin(a) + dz * math.cos(a))
+    sc.box(at(0, 1, 0), (22, 2, 22), casing_dark, rotation=(0, yaw, 0), roughness=0.5)
+    sc.box(at(0, 17, 4), (34, 30, 8), casing, rotation=(0, yaw, 0), roughness=0.45)
+    sc.box(at(0, 17.5, -8), (29, 25, 18), casing, rotation=(0, yaw, 0), roughness=0.5)
+    sc.plane(at(0, 18.5, 8.05), 25, 19, "#101412", rotation=(0, yaw, 0), roughness=0.15)
 
 
 def add_keyboard(sc, base, tex):
@@ -353,7 +401,7 @@ def add_keyboard(sc, base, tex):
     sc.box((0, DESK_Y + 0.4, -33), (0.8, 0.8, 18), "#2a2826", shadows=False)   # cable
 
 
-def room_80s(out, rng):
+def room_80s(out, rng, mon):
     sc = Scene("80s")
     t_wall = save(wood_panel(rng), out, "wood-panel.jpg")
     t_desk = save(walnut(rng), out, "walnut.jpg")
@@ -384,7 +432,7 @@ def room_80s(out, rng):
             sc.box((x, 16 + k * 19, -14.8), (32, 16, 1), "#5c371e", roughness=0.5)
             sc.box((x, 20 + k * 19, -14), (10, 1.4, 1.4), "#c8b27a", metalness=0.8, roughness=0.3)
 
-    add_monitor(sc, "#d6ccb2", "#aaa088")
+    add_monitor(sc, mon, "#d6ccb2", "#aaa088")
     add_keyboard(sc, "#c8bea4", t_keys)
 
     # Poster and a shelf with books and a cassette deck.
@@ -436,10 +484,10 @@ def room_80s(out, rng):
          "shadows": False},
         {"type": "point", "position": [0, 220, 40], "color": "#ffe2b8", "intensity": 0.8, "range": 400},
     ]
-    return finish(sc, background="#1a120c", ambient=("#806048", 0.35), fill="#5a3a22")
+    return finish(sc, mon, background="#1a120c", ambient=("#806048", 0.35), fill="#5a3a22")
 
 
-def room_90s(out, rng):
+def room_90s(out, rng, mon):
     sc = Scene("90s")
     t_fabric = save(fabric(rng, (96, 104, 122)), out, "fabric.jpg")
     t_desk = save(laminate(rng, (194, 192, 186)), out, "laminate.jpg")
@@ -490,8 +538,19 @@ def room_90s(out, rng):
     sc.box((60, 36, -37.4), (14, 3, 0.4), "#3a3a3c")
     sc.box((60, 28, -37.4), (10, 1.5, 0.4), "#3a3a3c")
 
-    add_monitor(sc, "#c8c6be", "#9c9a94",
-                sticky_notes=[(-19, SCREEN_Y + 13, 6, t_yellow), (19.5, SCREEN_Y - 6, -5, t_pink)])
+    add_monitor(sc, mon, "#d8d6cc", "#a8a69e",
+                sticky_notes=[(3, 4, 6, t_yellow), (2 * mon.half_width - 3, 22, -5, t_pink)])
+    # An older monitor off to the side, a desk lamp and small speakers.
+    add_old_monitor(sc, -68, -64, 28, "#d0ccbc", "#a29e90")
+    sc.cylinder((80, DESK_Y + 1, -66), 13, 2, "#1c1c1e", roughness=0.35)
+    sc.cylinder((80, DESK_Y + 16, -66), 1.4, 30, "#1c1c1e", metalness=0.6, roughness=0.3)
+    sc.sphere((80, DESK_Y + 31, -62), (14, 9, 14), "#1c1c1e", roughness=0.3)
+    sc.sphere((80, DESK_Y + 27.5, -61), (8, 1.5, 8), "#fff6e0", emissive="#fff0d0", shadows=False)
+    sc.lights.append({"type": "point", "position": [80, DESK_Y + 24, -58], "color": "#fff0d8",
+                      "intensity": 0.6, "range": 90})
+    for x in (-mon.half_width - 7, mon.half_width + 7):
+        sc.box((x, DESK_Y + 7, -40), (9, 14, 11), "#4a4c50", roughness=0.5)
+        sc.cylinder((x, DESK_Y + 9, -34.4), 5, 0.4, "#2a2c30", rotation=(90, 0, 0), roughness=0.8)
     add_keyboard(sc, "#bebcb4", t_keys)
 
     # Calendar, memos and a note pinned to the partitions.
@@ -501,16 +560,16 @@ def room_90s(out, rng):
     sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False)
 
     # Mouse mat and mouse, phone, styrofoam cup and a stack of paper.
-    sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#284682", roughness=0.8)
+    sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#6a5aa8", roughness=0.8)
     sc.sphere((36, DESK_Y + 1.6, -20), (6, 3.2, 10), "#d6d4cc", roughness=0.4)
     sc.box((36, DESK_Y + 0.6, -36), (0.5, 0.5, 22), "#3c3c3c", shadows=False)
-    sc.box((-62, DESK_Y + 3, -40), (22, 6, 20), "#343438", rotation=(0, 10, 0), roughness=0.45)
-    sc.box((-66, DESK_Y + 7, -42), (8, 4, 20), "#3c3c40", rotation=(0, 10, 0), roughness=0.45)
-    sc.box((-56, DESK_Y + 6.2, -34), (8, 0.5, 6), "#788c6c", rotation=(0, 10, 0), roughness=0.3)
+    sc.box((-70, DESK_Y + 3, -31), (22, 6, 20), "#343438", rotation=(0, 10, 0), roughness=0.45)
+    sc.box((-74, DESK_Y + 7, -33), (8, 4, 20), "#3c3c40", rotation=(0, 10, 0), roughness=0.45)
+    sc.box((-64, DESK_Y + 6.2, -25), (8, 0.5, 6), "#788c6c", rotation=(0, 10, 0), roughness=0.3)
     sc.cylinder((60, DESK_Y + 5.5, -30), 8, 11, "#f4f2ec", roughness=0.7)
     sc.cylinder((60, DESK_Y + 10.6, -30), 7.2, 0.4, "#4a2c18", roughness=0.2, shadows=False)
     for k in range(6):
-        sc.box((-40 + (k % 2) * 0.6, DESK_Y + 0.3 + k * 0.4, -62), (21, 0.4, 29.7), "#f2f2ee",
+        sc.box((-46 + (k % 2) * 0.6, DESK_Y + 0.3 + k * 0.4, -40), (21, 0.4, 29.7), "#f2f2ee",
                rotation=(0, k * 2, 0))
 
     sc.lights += [
@@ -520,52 +579,52 @@ def room_90s(out, rng):
          "shadows": False},
         {"type": "point", "position": [0, 240, -20], "color": "#f0f6ff", "intensity": 1.0, "range": 500},
     ]
-    return finish(sc, background="#202228", ambient=("#7c8494", 0.4), fill="#4e5566")
+    return finish(sc, mon, background="#202228", ambient=("#7c8494", 0.4), fill="#4e5566")
 
 
 # The 2D picture: the room from straight in front of the monitor, so the
 # screen is an upright rectangle in it.
 PICTURE_W, PICTURE_H = 2400, 1500
-PICTURE_TARGET = (0, 95, SCREEN_Z)
-PICTURE_DISTANCE = 85
 PICTURE_FOV = 40
 
 
-def project(x, y, z):
-    """Where a point lands in the picture, in pixels from the top left."""
-    focal = (PICTURE_H / 2) / math.tan(math.radians(PICTURE_FOV / 2))
-    depth = (PICTURE_TARGET[2] + PICTURE_DISTANCE) - z
-    return (PICTURE_W / 2 + (x - PICTURE_TARGET[0]) * focal / depth,
-            PICTURE_H / 2 - (y - PICTURE_TARGET[1]) * focal / depth)
+def picture(name, mon, fill):
+    target = (0, 95, mon.z)
+    distance = mon.distance - 10
 
+    def project(x, y, z):
+        """Where a point lands in the picture, in pixels from the top left."""
+        focal = (PICTURE_H / 2) / math.tan(math.radians(PICTURE_FOV / 2))
+        depth = (target[2] + distance) - z
+        return (PICTURE_W / 2 + (x - target[0]) * focal / depth,
+                PICTURE_H / 2 - (y - target[1]) * focal / depth)
 
-def picture(name, fill):
-    x0, y0 = project(-SCREEN_W / 2, SCREEN_Y + SCREEN_H / 2, SCREEN_Z)
-    x1, y1 = project(SCREEN_W / 2, SCREEN_Y - SCREEN_H / 2, SCREEN_Z)
+    x0, y0 = project(-mon.w / 2, mon.y + mon.h / 2, mon.z)
+    x1, y1 = project(mon.w / 2, mon.y - mon.h / 2, mon.z)
     # The monitor and its stand, which stay in view however the window is shaped.
-    mx0, my0 = project(-22, SCREEN_Y + 18, -41.5)
-    mx1, my1 = project(22, DESK_Y, -43)
-    return {"image": "office-%s.jpg" % name, "size": [PICTURE_W, PICTURE_H], "fill": fill,
-            "camera": {"target": list(PICTURE_TARGET), "distance": PICTURE_DISTANCE, "yaw": 0, "pitch": 0},
+    mx0, my0 = project(-mon.half_width - 2, mon.top + 1, mon.z)
+    mx1, my1 = project(mon.half_width + 2, DESK_Y, mon.z - 1)
+    return {"image": "office-%s-%s.jpg" % (name, mon.name), "size": [PICTURE_W, PICTURE_H], "fill": fill,
+            "camera": {"target": list(target), "distance": distance, "yaw": 0, "pitch": 0},
             "screen": [round(x0, 1), round(y0, 1), round(x1 - x0, 1), round(y1 - y0, 1)],
             "monitor": [round(mx0, 1), round(my0, 1), round(mx1 - mx0, 1), round(my1 - my0, 1)]}
 
 
-def finish(sc, background, ambient, fill):
+def finish(sc, mon, background, ambient, fill):
     return {
         "name": sc.name,
         "background": background,
         "ambient": {"color": ambient[0], "intensity": ambient[1]},
         # An orbit camera around the middle of the screen; angles in degrees,
         # yaw turns left/right, negative pitch looks down from above.
-        "camera": {"target": [0, SCREEN_Y, SCREEN_Z], "distance": 95, "yaw": 0, "pitch": -10,
-                   "fov": 40, "near": 2, "far": 3000,
+        "camera": {"target": [0, mon.y, mon.z], "distance": mon.distance, "yaw": 0, "pitch": -10,
+                   "fov": 40, "near": 5, "far": 3000,
                    "minDistance": 30, "maxDistance": 280,
                    "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
-        "screen": {"position": [0, SCREEN_Y, SCREEN_Z], "size": [SCREEN_W, SCREEN_H], "rotation": quat()},
+        "screen": {"position": [0, mon.y, mon.z], "size": [mon.w, mon.h], "rotation": quat()},
+        "picture": picture(sc.name, mon, fill),
         # Light cast by the screen, in the profile's text colour.
-        "picture": picture(sc.name, fill),
-        "screenGlow": {"position": [0, SCREEN_Y, SCREEN_Z + 15], "intensity": 0.6, "range": 120},
+        "screenGlow": {"position": [0, mon.y, mon.z + 15], "intensity": 0.6, "range": 120},
         "lights": sc.lights,
         "objects": sc.objects,
     }
@@ -575,12 +634,14 @@ def main():
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     out = os.path.join(repo, "app", "qml", "office")
     os.makedirs(out, exist_ok=True)
-    for name, builder, seed in (("office-80s.json", room_80s, 1984), ("office-90s.json", room_90s, 1995)):
-        scene = builder(out, np.random.default_rng(seed))
-        with open(os.path.join(out, name), "w") as f:
-            json.dump(scene, f, indent=1)
-            f.write("\n")
-        print("wrote %s: %d objects" % (name, len(scene["objects"])), file=sys.stderr)
+    for room, builder, seed in (("80s", room_80s, 1984), ("90s", room_90s, 1995)):
+        for mon in (STANDARD, WIDE):
+            scene = builder(out, np.random.default_rng(seed), mon)
+            name = "office-%s-%s.json" % (room, mon.name)
+            with open(os.path.join(out, name), "w") as f:
+                json.dump(scene, f, indent=1)
+                f.write("\n")
+            print("wrote %s: %d objects" % (name, len(scene["objects"])), file=sys.stderr)
 
 
 if __name__ == "__main__":

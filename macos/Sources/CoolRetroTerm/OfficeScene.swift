@@ -44,6 +44,20 @@ enum OfficeScene: String, CaseIterable {
     }
 }
 
+/// The monitor on the desk in office mode. Shared with the Qt app
+/// (`officeMonitor` in its settings).
+enum OfficeMonitor: String, CaseIterable {
+    case standard
+    case wide
+
+    var title: String {
+        switch self {
+        case .standard: return "Standard Monitor (4:3)"
+        case .wide: return "Widescreen Monitor (16:10)"
+        }
+    }
+}
+
 /// A room, as written by scripts/generate-office-scenes.py.
 struct OfficeRoom: Decodable {
     struct Camera: Decodable {
@@ -100,9 +114,9 @@ struct OfficeRoom: Decodable {
     var lights: [Light]
     var objects: [Object]
 
-    static func load(_ scene: OfficeScene) -> OfficeRoom? {
+    static func load(_ scene: OfficeScene, monitor: OfficeMonitor) -> OfficeRoom? {
         guard scene != .off else { return nil }
-        return AppResources.decode(OfficeRoom.self, from: "Office/office-\(scene.rawValue).json")
+        return AppResources.decode(OfficeRoom.self, from: "Office/office-\(scene.rawValue)-\(monitor.rawValue).json")
     }
 }
 
@@ -132,10 +146,13 @@ final class OfficePictureView: NSView {
     var image: CGImage? { (imageLayer.contents as? NSImage)?.cgImage(forProposedRect: nil, context: nil, hints: nil) }
     var fillColor: NSColor { picture.map { NSColor(hex: $0.fill) } ?? .black }
 
-    func show(_ scene: OfficeScene) {
-        guard scene != officeScene else { return }
+    private var monitor: OfficeMonitor = .wide
+
+    func show(_ scene: OfficeScene, monitor: OfficeMonitor) {
+        guard scene != officeScene || monitor != self.monitor else { return }
         officeScene = scene
-        picture = OfficeRoom.load(scene)?.picture
+        self.monitor = monitor
+        picture = OfficeRoom.load(scene, monitor: monitor)?.picture
         isHidden = picture == nil
         if let picture {
             imageLayer.contents = NSImage(contentsOf: AppResources.url("Office/\(picture.image)"))
@@ -222,11 +239,20 @@ final class OfficeSceneView: SCNView {
 
     // MARK: Building the room
 
-    func show(_ newScene: OfficeScene) {
-        guard newScene != officeScene else { return }
+    private var monitor: OfficeMonitor = .wide
+
+    /// The screen's width over its height.
+    var screenAspect: CGFloat {
+        guard let size = room?.screen.size, size.count == 2, size[1] > 0 else { return 4 / 3 }
+        return CGFloat(size[0] / size[1])
+    }
+
+    func show(_ newScene: OfficeScene, monitor: OfficeMonitor) {
+        guard newScene != officeScene || monitor != self.monitor else { return }
         officeScene = newScene
+        self.monitor = monitor
         isHidden = newScene == .off
-        guard let room = OfficeRoom.load(newScene) else {
+        guard let room = OfficeRoom.load(newScene, monitor: monitor) else {
             scene = nil
             self.room = nil
             screenNode = nil

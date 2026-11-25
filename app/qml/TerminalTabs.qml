@@ -307,7 +307,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Office mode. In 3D, the terminal is laid out as a 4:3 screen and
+            // Office mode. In 3D, the terminal is laid out at the screen's shape and
             // shown on the monitor in a 3D room (OfficeScene.qml), drawn over
             // it. In 2D (3D turned off, Qt Quick 3D missing or no GPU), it's
             // placed over the monitor in a picture of the room (OfficePicture.qml).
@@ -316,18 +316,22 @@ Item {
                                           && officeLoader.status !== Loader.Error
             readonly property bool office3D: officeMode && appSettings.office3D && can3D
             readonly property bool office2D: officeMode && !office3D
-            readonly property real screenHeight: Math.min(height, width * 3 / 4)
+            // The monitor's screen shape: 4:3 or 16:10.
+            readonly property real screenAspect: officeLoader.item ? officeLoader.item.screenAspect
+                                               : appSettings.officeMonitor === "standard" ? 4 / 3 : 16 / 10
+            readonly property real screenHeight: Math.min(height, width / screenAspect)
 
             OfficePicture {
                 id: officePicture
                 anchors.fill: parent
                 visible: terminalArea.office2D
                 scene: terminalArea.officeMode ? appSettings.officeScene : "80s"
+                monitor: appSettings.officeMonitor
             }
 
             StackLayout {
                 id: stack
-                width: terminalArea.office3D ? Math.round(terminalArea.screenHeight * 4 / 3)
+                width: terminalArea.office3D ? Math.round(terminalArea.screenHeight * terminalArea.screenAspect)
                      : terminalArea.office2D ? officePicture.screenRect.width : terminalArea.width
                 height: terminalArea.office3D ? Math.round(terminalArea.screenHeight)
                       : terminalArea.office2D ? officePicture.screenRect.height : terminalArea.height
@@ -374,6 +378,7 @@ Item {
                 onLoaded: {
                     item.screenItem = stack
                     item.scene = Qt.binding(() => appSettings.officeScene)
+                    item.monitor = Qt.binding(() => appSettings.officeMonitor)
                     item.time = Qt.binding(() => timeManager.time)
                     item.glowColor = Qt.binding(() => appSettings.fontColor)
                     item.lookAround = Qt.binding(() => appSettings.officeLookAround)

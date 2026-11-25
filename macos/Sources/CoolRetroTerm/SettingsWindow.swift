@@ -121,7 +121,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
         switch pane {
-        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 660))
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 700))
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
         case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 370))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
@@ -188,6 +188,9 @@ final class SettingsModel: ObservableObject {
     }
     var burnInQuality: Binding<Double> {
         Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var officeMonitor: Binding<OfficeMonitor> {
+        Binding(get: { ProfileStore.shared.officeMonitor }, set: { ProfileStore.shared.officeMonitor = $0 })
     }
     var office3D: Binding<Bool> {
         Binding(get: { ProfileStore.shared.office3D }, set: { ProfileStore.shared.office3D = $0 })
@@ -348,6 +351,9 @@ private struct GeneralSettings: View {
             Section("Window") {
                 Picker("Office mode", selection: model.officeScene) {
                     ForEach(OfficeScene.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Picker("Monitor", selection: model.officeMonitor) {
+                    ForEach(OfficeMonitor.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 Toggle("Office mode in 3D (a picture of the room when off)", isOn: model.office3D)
                 Toggle("Look around the room (Option-drag, Option-scroll)", isOn: model.officeLookAround)

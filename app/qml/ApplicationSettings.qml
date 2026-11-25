@@ -50,6 +50,7 @@ QtObject {
     property int cursorShape: 0                // 0 solid block, 1 underline, 2 bar
     property string officeScene: ""           // office mode: "" off, "80s" or "90s"
     property bool office3D: true               // office mode in 3D (a picture when off)
+    property string officeMonitor: "wide"      // office mode monitor: "standard" (4:3) or "wide" (16:10)
     property bool officeLookAround: true       // move the camera in the 3D room
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
@@ -182,6 +183,7 @@ QtObject {
             "cursorShape": cursorShape,
             "officeScene": officeScene,
             "office3D": office3D,
+            "officeMonitor": officeMonitor,
             "officeLookAround": officeLookAround,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
@@ -278,6 +280,7 @@ QtObject {
         cursorShape = settings.cursorShape !== undefined ? settings.cursorShape : cursorShape
         officeScene = settings.officeScene !== undefined ? settings.officeScene : officeScene
         office3D = settings.office3D !== undefined ? settings.office3D : office3D
+        officeMonitor = settings.officeMonitor === "standard" ? "standard" : "wide"
         officeLookAround = settings.officeLookAround !== undefined ? settings.officeLookAround : officeLookAround
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality

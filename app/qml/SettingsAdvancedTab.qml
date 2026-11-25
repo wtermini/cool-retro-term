@@ -81,6 +81,15 @@ ColumnLayout {
                     onActivated: (index) => appSettings.officeScene = scenes[index]
                 }
             }
+            RowLayout {
+                Label { text: qsTr("Office Monitor") }
+                ComboBox {
+                    readonly property var monitors: ["standard", "wide"]
+                    model: [qsTr("Standard (4:3)"), qsTr("Widescreen (16:10)")]
+                    currentIndex: Math.max(monitors.indexOf(appSettings.officeMonitor), 0)
+                    onActivated: (index) => appSettings.officeMonitor = monitors[index]
+                }
+            }
             CheckBox {
                 text: qsTr("Office Mode in 3D (a picture of the room when off)")
                 checked: appSettings.office3D
