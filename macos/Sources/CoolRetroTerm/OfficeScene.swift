@@ -516,9 +516,10 @@ final class OfficeSceneView: SCNView {
             }
             material.roughness.contents = NSNumber(value: object.roughness)
             if let opacity = object.opacity, opacity < 1 {
-                material.transparency = CGFloat(opacity)
-                material.transparencyMode = .dualLayer
+                // Glass, water and bubbles: see-through from both sides, and
+                // not hiding what's behind them in the depth buffer.
                 material.isDoubleSided = true
+                material.writesToDepthBuffer = false
             }
             material.metalness.contents = NSNumber(value: object.metalness)
             geometry.materials = [material]
@@ -528,6 +529,10 @@ final class OfficeSceneView: SCNView {
             node.simdScale = vector(object.size)
             node.simdOrientation = quaternion(object.rotation)
             node.castsShadow = object.shadows
+            if let opacity = object.opacity, opacity < 1 {
+                node.opacity = CGFloat(opacity)
+                node.renderingOrder = 10   // after the solid objects
+            }
             if let live = object.live {
                 liveNodes[live] = node
             }
