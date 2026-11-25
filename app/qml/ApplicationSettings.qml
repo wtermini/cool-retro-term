@@ -46,6 +46,7 @@ QtObject {
     property bool newLineKeys: true          // Shift/Control-Return insert a new line
     property bool alwaysShowTabBar: false
     property bool secureKeyboardEntry: false // macOS only
+    property bool pauseEffectsWhenIdle: true   // stop animating effects when nothing happens
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
@@ -173,6 +174,7 @@ QtObject {
             "newLineKeys": newLineKeys,
             "alwaysShowTabBar": alwaysShowTabBar,
             "secureKeyboardEntry": secureKeyboardEntry,
+            "pauseEffectsWhenIdle": pauseEffectsWhenIdle,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -264,6 +266,7 @@ QtObject {
         newLineKeys = settings.newLineKeys !== undefined ? settings.newLineKeys : newLineKeys
         alwaysShowTabBar = settings.alwaysShowTabBar !== undefined ? settings.alwaysShowTabBar : alwaysShowTabBar
         secureKeyboardEntry = settings.secureKeyboardEntry !== undefined ? settings.secureKeyboardEntry : secureKeyboardEntry
+        pauseEffectsWhenIdle = settings.pauseEffectsWhenIdle !== undefined ? settings.pauseEffectsWhenIdle : pauseEffectsWhenIdle
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality

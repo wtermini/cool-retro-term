@@ -19,6 +19,14 @@
 *******************************************************************************/
 import QtQuick
 
+// Drives the animated effects (noise, flicker, jitter, sync, glow line).
+//
+// A plain timer at the effects frame rate (60 fps / frame skip) is used
+// rather than a per-frame animation: a running animation makes Qt Quick
+// render every display refresh (60 or 120 times a second), even when the
+// effects only change 20 times a second. When "pause effects when idle" is
+// on, the timer also stops a few seconds after the last output or key press,
+// so an idle terminal costs almost nothing; any activity resumes it.
 QtObject {
     id: timeManager
 
@@ -26,20 +34,38 @@ QtObject {
     property real time: 0
 
     property int framesPerUpdate: Math.max(1, appSettings.effectsFrameSkip)
-    property int _frameCounter: 0
 
-    property var frameDriver: FrameAnimation {
-        running: enableTimer
-        onTriggered: {
-            timeManager._frameCounter += 1
+    /// No output or input for a while (only when pausing when idle is on).
+    property bool idle: false
+    readonly property int idleDelay: 5000
 
-            if (timeManager._frameCounter >= timeManager.framesPerUpdate) {
-                time = elapsedTime
-                timeManager._frameCounter = 0
-            }
-        }
+    readonly property real _start: Date.now()
+
+    /// Call on terminal output, key presses and window activation.
+    function noteActivity() {
+        if (idle)
+            idle = false
+        idleTimer.restart()
     }
 
-    onEnableTimerChanged: if (!enableTimer) _frameCounter = 0
-    onFramesPerUpdateChanged: _frameCounter = 0
+    property var frameTimer: Timer {
+        interval: Math.round(1000 * timeManager.framesPerUpdate / 60)
+        repeat: true
+        running: timeManager.enableTimer && !timeManager.idle
+        onTriggered: timeManager.time = (Date.now() - timeManager._start) / 1000
+    }
+
+    property var idleTimer: Timer {
+        interval: timeManager.idleDelay
+        running: timeManager.enableTimer && appSettings.pauseEffectsWhenIdle
+        onTriggered: timeManager.idle = true
+    }
+
+    property var settingsWatcher: Connections {
+        target: appSettings
+        function onPauseEffectsWhenIdleChanged() {
+            if (!appSettings.pauseEffectsWhenIdle)
+                timeManager.idle = false
+        }
+    }
 }

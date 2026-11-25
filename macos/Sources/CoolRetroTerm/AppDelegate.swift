@@ -149,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.effectsEnabled.toggle()
     }
 
+    /// The profile's blinking cursor setting (shared with the Qt app).
+    @objc func toggleBlinkingCursor(_ sender: Any?) {
+        ProfileStore.shared.updateCurrent { $0.blinkingCursor.toggle() }
+    }
+
     // Same steps as the Qt app's font scaling.
     @objc func makeTextBigger(_ sender: Any?) { ProfileStore.shared.setZoom(ProfileStore.shared.zoom + 0.05) }
     @objc func makeTextSmaller(_ sender: Any?) { ProfileStore.shared.setZoom(ProfileStore.shared.zoom - 0.05) }
@@ -221,6 +226,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return frontController != nil
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
+        case #selector(toggleBlinkingCursor(_:)):
+            menuItem.state = ProfileStore.shared.current.blinkingCursor ? .on : .off
         case #selector(toggleSecureKeyboardEntry(_:)):
             menuItem.state = SecureKeyboardEntry.shared.isEnabled ? .on : .off
         default:
@@ -337,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         profiles.delegate = self
         view.addItem(withTitle: "Profile", action: nil, keyEquivalent: "").submenu = profiles
         view.addItem(item("CRT Effects", #selector(toggleEffects(_:)), "e", [.command, .option]))
+        view.addItem(item("Blinking Cursor", #selector(toggleBlinkingCursor(_:))))
         view.addItem(item("Always Show Tab Bar", #selector(toggleAlwaysShowTabBar(_:))))
         view.addItem(.separator())
         view.addItem(item("Bigger", #selector(makeTextBigger(_:)), "+"))

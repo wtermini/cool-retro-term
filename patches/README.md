@@ -19,9 +19,16 @@ looks out of place (on macOS it can come out looking like a stray letter).
 The patch changes files in qmltermwidget, which is licensed under the GNU
 GPL version 2 or later. The changes are under the same license.
 
-## qmltermwidget-tab-color-osc.patch
+## qmltermwidget-session-signals.patch
 
-Reports the OSC 6 tab colour escape sequence (`ESC ] 6 ; 1 ; bg ; red ;
+Adds two signals to `QMLTermSession`:
+
+- `outputReceived()`, emitted when the program writes output (without the
+  data). The Qt app uses it to pause its animated effects while every
+  terminal is idle.
+- `tabColorRequested(spec)`, described below.
+
+It reports the OSC 6 tab colour escape sequence (`ESC ] 6 ; 1 ; bg ; red ;
 brightness ; N BEL`, and `... ; * ; default` to reset) to QML, as the
 `tabColorRequested(spec)` signal on `QMLTermSession`, so programs can colour
 their tab, as they can in Cool Retro Term SE. Each sequence is passed on

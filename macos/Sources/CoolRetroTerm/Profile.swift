@@ -252,6 +252,7 @@ final class ProfileStore {
     private(set) var sharedNewLineKeys = true
     private(set) var sharedAlwaysShowTabBar = false
     private(set) var sharedSecureKeyboardEntry = false
+    private(set) var sharedPauseEffectsWhenIdle = true
 
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []
@@ -311,6 +312,7 @@ final class ProfileStore {
         if let b = settings["newLineKeys"] as? Bool { sharedNewLineKeys = b }
         if let b = settings["alwaysShowTabBar"] as? Bool { sharedAlwaysShowTabBar = b }
         if let b = settings["secureKeyboardEntry"] as? Bool { sharedSecureKeyboardEntry = b }
+        if let b = settings["pauseEffectsWhenIdle"] as? Bool { sharedPauseEffectsWhenIdle = b }
         if settings["useCustomCommand"] as? Bool == true,
            let command = settings["customCommand"] as? String {
             let arguments = tokenizeCommandLine(command)
@@ -503,6 +505,12 @@ final class ProfileStore {
     var alwaysShowTabBar: Bool {
         get { sharedAlwaysShowTabBar }
         set { sharedAlwaysShowTabBar = newValue; writeAppSetting("alwaysShowTabBar", newValue) }
+    }
+
+    /// Stop animating the effects a few seconds after the last activity.
+    var pauseEffectsWhenIdle: Bool {
+        get { sharedPauseEffectsWhenIdle }
+        set { sharedPauseEffectsWhenIdle = newValue; writeAppSetting("pauseEffectsWhenIdle", newValue) }
     }
 
     /// Secure Keyboard Entry (macOS), shared with the Qt app.

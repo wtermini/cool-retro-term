@@ -97,8 +97,19 @@ final class CRTRenderer {
     }
     /// Resolution of the burn-in buffer relative to the text (Qt: burn-in quality).
     var burnInQuality: Double = 0.5 {
-        didSet { if burnInQuality != oldValue { contentTexture = nil } }
+        didSet { if burnInQuality != oldValue { burnInSize = nil } }
     }
+
+    /// Size of the burn-in buffers; nil when they need recreating.
+    private var burnInSize: (width: Int, height: Int)?
+
+    // Zero-copy capture on unified-memory Macs (Apple silicon): the terminal
+    // is drawn straight into shared buffers the GPU reads as textures, so
+    // nothing is copied. Three buffers, so the CPU never draws into one the
+    // GPU may still be reading.
+    private var sharedContent: [(buffer: MTLBuffer, texture: MTLTexture)] = []
+    private var sharedContentIndex = 0
+    private var sharedContentSize: (width: Int, height: Int, bytesPerRow: Int)?
 
     init(device: MTLDevice, pixelFormat: MTLPixelFormat) throws {
         self.device = device
@@ -129,20 +140,75 @@ final class CRTRenderer {
 
     /// Uploads a new terminal snapshot (RGBA, 8 bits per channel).
     func updateContent(bytes: UnsafeRawPointer, width: Int, height: Int, bytesPerRow: Int) {
-        if contentTexture?.width != width || contentTexture?.height != height {
+        if contentTexture?.width != width || contentTexture?.height != height
+            || contentTexture?.pixelFormat != .rgba8Unorm || contentTexture?.buffer != nil {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(
                 pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false)
             descriptor.usage = .shaderRead
             contentTexture = device.makeTexture(descriptor: descriptor)
-            let scale = min(max(burnInQuality, 0.25), 1)
-            let burnInWidth = max(Int(Double(width) * scale), 1)
-            let burnInHeight = max(Int(Double(height) * scale), 1)
-            burnInTextures = (0..<2).compactMap { _ in makeRenderTarget(width: burnInWidth, height: burnInHeight) }
-            burnInNeedsClear = true
         }
         contentTexture?.replace(region: MTLRegionMake2D(0, 0, width, height),
                                 mipmapLevel: 0, withBytes: bytes, bytesPerRow: bytesPerRow)
+        prepareBurnIn(width: width, height: height)
         contentChanged = true
+    }
+
+    /// Whether the terminal can be drawn straight into GPU-visible memory.
+    var supportsZeroCopyCapture: Bool { device.hasUnifiedMemory }
+
+    /// Starts a zero-copy capture: returns a bitmap context drawing into the
+    /// next shared buffer (BGRA, top row first, like a texture), or nil when
+    /// not supported. Call `endContentCapture()` after drawing.
+    func beginContentCapture(width: Int, height: Int) -> CGContext? {
+        guard supportsZeroCopyCapture, width > 0, height > 0 else { return nil }
+        if sharedContentSize?.width != width || sharedContentSize?.height != height {
+            let alignment = device.minimumLinearTextureAlignment(for: .bgra8Unorm)
+            let bytesPerRow = (width * 4 + alignment - 1) / alignment * alignment
+            sharedContent = (0..<3).compactMap { _ in
+                guard let buffer = device.makeBuffer(length: bytesPerRow * height, options: .storageModeShared) else {
+                    return nil
+                }
+                let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                    pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+                descriptor.usage = .shaderRead
+                descriptor.storageMode = .shared
+                guard let texture = buffer.makeTexture(descriptor: descriptor, offset: 0, bytesPerRow: bytesPerRow) else {
+                    return nil
+                }
+                return (buffer, texture)
+            }
+            guard sharedContent.count == 3 else {
+                sharedContent = []
+                sharedContentSize = nil
+                return nil
+            }
+            sharedContentSize = (width, height, bytesPerRow)
+        }
+        guard let size = sharedContentSize else { return nil }
+        sharedContentIndex = (sharedContentIndex + 1) % sharedContent.count
+        return CGContext(data: sharedContent[sharedContentIndex].buffer.contents(),
+                         width: width, height: height, bitsPerComponent: 8, bytesPerRow: size.bytesPerRow,
+                         space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    }
+
+    func endContentCapture() {
+        guard let size = sharedContentSize, sharedContent.indices.contains(sharedContentIndex) else { return }
+        contentTexture = sharedContent[sharedContentIndex].texture
+        prepareBurnIn(width: size.width, height: size.height)
+        contentChanged = true
+    }
+
+    /// (Re)creates the burn-in buffers for the terminal size and quality.
+    private func prepareBurnIn(width: Int, height: Int) {
+        let scale = min(max(burnInQuality, 0.25), 1)
+        let burnInWidth = max(Int(Double(width) * scale), 1)
+        let burnInHeight = max(Int(Double(height) * scale), 1)
+        if burnInSize?.width != burnInWidth || burnInSize?.height != burnInHeight || burnInTextures.count != 2 {
+            burnInTextures = (0..<2).compactMap { _ in makeRenderTarget(width: burnInWidth, height: burnInHeight) }
+            burnInSize = (burnInWidth, burnInHeight)
+            burnInNeedsClear = true
+        }
     }
 
     // MARK: Frame

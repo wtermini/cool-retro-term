@@ -125,7 +125,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
         case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 320))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
-        case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 240))
+        case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 300))
         }
     }
 }
@@ -188,6 +188,9 @@ final class SettingsModel: ObservableObject {
     }
     var burnInQuality: Binding<Double> {
         Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var pauseEffectsWhenIdle: Binding<Bool> {
+        Binding(get: { ProfileStore.shared.pauseEffectsWhenIdle }, set: { ProfileStore.shared.pauseEffectsWhenIdle = $0 })
     }
     var showTerminalSize: Binding<Bool> {
         Binding(get: { ProfileStore.shared.showTerminalSize }, set: { ProfileStore.shared.setShowTerminalSize($0) })
@@ -464,8 +467,9 @@ private struct PerformanceSettings: View {
                 LabeledSlider("Texture quality", value: model.windowScaling, range: 0.25...1, percent: true)
                 LabeledSlider("Bloom quality", value: model.bloomQuality, range: 0.25...1, percent: true)
                 LabeledSlider("Burn-in quality", value: model.burnInQuality, range: 0.25...1, percent: true)
+                Toggle("Pause effects when idle", isOn: model.pauseEffectsWhenIdle)
             } footer: {
-                Text("Lower values use less GPU and battery. What you type is always shown straight away; only the animation of the effects slows down. Shared with the Qt app.")
+                Text("Lower values use less CPU, GPU and battery. What you type is always shown straight away; only the animation of the effects slows down. Pausing when idle stops the animation a few seconds after the last output or key press. In Low Power Mode the effects run at 12 fps. Shared with the Qt app.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

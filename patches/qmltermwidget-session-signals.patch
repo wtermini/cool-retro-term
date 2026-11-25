@@ -49,27 +49,32 @@ index be82181..bf30344 100644
    _titleUpdateTimer->start(20);
  }
 diff --git a/lib/ksession.cpp b/lib/ksession.cpp
-index e17ec8a..f3a5088 100644
+index e17ec8a..5913a82 100644
 --- a/lib/ksession.cpp
 +++ b/lib/ksession.cpp
-@@ -40,6 +40,7 @@ KSession::KSession(QObject *parent) :
+@@ -40,6 +40,8 @@ KSession::KSession(QObject *parent) :
      connect(m_session, SIGNAL(started()), this, SIGNAL(started()));
      connect(m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
      connect(m_session, SIGNAL(titleChanged()), this, SIGNAL(titleChanged()));
 +    connect(m_session, SIGNAL(tabColorRequested(QString)), this, SIGNAL(tabColorRequested(QString)));
++    connect(m_session, &Konsole::Session::receivedData, this, [this] { emit outputReceived(); });
  }
  
  KSession::~KSession()
 diff --git a/lib/ksession.h b/lib/ksession.h
-index f4e9d6e..11c928f 100644
+index f4e9d6e..a825ff7 100644
 --- a/lib/ksession.h
 +++ b/lib/ksession.h
-@@ -127,6 +127,9 @@ signals:
+@@ -127,6 +127,13 @@ signals:
  
      void titleChanged();
  
 +    /** OSC 6 tab colour sequence from the running program (text after "6;"). */
 +    void tabColorRequested(QString spec);
++
++    /** The program wrote output (without the data, so it costs nothing to
++     *  connect to). Used to pause animated effects while a terminal is idle. */
++    void outputReceived();
 +
      void historySizeChanged();
  

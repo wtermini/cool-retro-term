@@ -164,6 +164,14 @@ ColumnLayout {
             SizedLabel {
                 text: Math.round(burnInSlider.value * 100) + "%"
             }
+            CheckBox {
+                Layout.columnSpan: 4
+                text: qsTr("Pause effects when idle")
+                checked: appSettings.pauseEffectsWhenIdle
+                onCheckedChanged: appSettings.pauseEffectsWhenIdle = checked
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Stops animating the effects a few seconds after the last output or key press, to save CPU, GPU and battery.")
+            }
         }
     }
 }

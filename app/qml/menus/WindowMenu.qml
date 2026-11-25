@@ -51,6 +51,13 @@ MenuBar {
         }
         MenuItem { action: zoomIn }
         MenuItem { action: zoomOut }
+        MenuSeparator { }
+        MenuItem {
+            text: qsTr("Blinking Cursor")
+            checkable: true
+            checked: appSettings.blinkingCursor
+            onTriggered: appSettings.blinkingCursor = checked
+        }
     }
     Menu {
         id: profilesMenu

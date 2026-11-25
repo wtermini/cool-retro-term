@@ -61,14 +61,24 @@ final class RetroTerminalView: LocalProcessTerminalView {
         terminalDelegate = delegate
     }
 
+    /// When the CRT image covers the terminal, SwiftTerm drawing it on screen
+    /// as well is wasted work: it is drawn only when captured instead.
+    var suppressesOwnDrawing = false {
+        didSet {
+            if !suppressesOwnDrawing && oldValue { super.needsDisplay = true }
+        }
+    }
+
     override func setNeedsDisplay(_ invalidRect: NSRect) {
-        super.setNeedsDisplay(invalidRect)
+        if !suppressesOwnDrawing { super.setNeedsDisplay(invalidRect) }
         onInvalidate?()
     }
 
     override var needsDisplay: Bool {
-        didSet {
-            if needsDisplay { onInvalidate?() }
+        get { super.needsDisplay }
+        set {
+            if !suppressesOwnDrawing || !newValue { super.needsDisplay = newValue }
+            if newValue { onInvalidate?() }
         }
     }
 }
@@ -135,6 +145,14 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private var contentDirty = true
     private var capturing = false
     private var lastCapture: CFTimeInterval = 0
+    private var capturedPixelSize: (width: Int, height: Int) = (1, 1)
+
+    // Efficiency: see draw(in:) and noteActivity().
+    private var lastActivity = CACurrentMediaTime()
+    private var pausedForIdle = false
+    private var drawScheduled = false
+    private var powerObserver: NSObjectProtocol?
+    private var keyWindowObserver: NSObjectProtocol?
     private let startTime = CACurrentMediaTime()
     private var occlusionObserver: NSObjectProtocol?
     private var framesDrawn = 0
@@ -182,6 +200,13 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         terminal.onInvalidate = { [weak self] in
             guard let self, !self.capturing else { return }
             self.contentDirty = true
+            self.noteActivity()
+        }
+
+        powerObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.noteActivity() }
         }
 
         applyAppearance()
@@ -194,6 +219,12 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     deinit {
         if let occlusionObserver {
             NotificationCenter.default.removeObserver(occlusionObserver)
+        }
+        if let powerObserver {
+            NotificationCenter.default.removeObserver(powerObserver)
+        }
+        if let keyWindowObserver {
+            NotificationCenter.default.removeObserver(keyWindowObserver)
         }
     }
 
@@ -251,6 +282,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             : NSColor(rgb: profile.effectiveBackgroundColor).cgColor
 
         overlay.isHidden = !showsEffects
+        terminal.suppressesOwnDrawing = showsEffects
         updatePaused()
         layoutSubviewsNow()
         contentDirty = true
@@ -338,10 +370,20 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             NotificationCenter.default.removeObserver(occlusionObserver)
             self.occlusionObserver = nil
         }
+        if let keyWindowObserver {
+            NotificationCenter.default.removeObserver(keyWindowObserver)
+            self.keyWindowObserver = nil
+        }
         if let window {
             occlusionObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
             ) { [weak self] _ in self?.updatePaused() }
+            // Coming back to a window resumes paused effects.
+            keyWindowObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.noteActivity() }
+            }
         }
         updatePaused()
         contentDirty = true
@@ -357,7 +399,43 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     /// so a hidden terminal costs no GPU time or battery.
     private func updatePaused() {
         let visible = window?.occlusionState.contains(.visible) ?? false
-        overlay.isPaused = !showsEffects || !visible
+        overlay.isPaused = !showsEffects || !visible || pausedForIdle
+        overlay.preferredFramesPerSecond = effectsFramesPerSecond
+    }
+
+    // MARK: Efficiency
+    //
+    // The CRT image is redrawn:
+    // - straight away when the terminal's contents change (typing, output);
+    // - otherwise at the effects frame rate (60 fps / the Qt app's frame
+    //   skip, or 12 fps in Low Power Mode), to animate noise, flicker and
+    //   the like;
+    // - not at all once nothing has happened for a few seconds, when "pause
+    //   effects when idle" is on (except twice a second for a blinking
+    //   cursor); any activity resumes it.
+
+    private var lowPowerMode: Bool { ProcessInfo.processInfo.isLowPowerModeEnabled }
+
+    private var effectsFramesPerSecond: Int {
+        lowPowerMode ? 12 : max(60 / max(ProfileStore.shared.effectsFrameSkip, 1), 1)
+    }
+
+    private var idleDelay: CFTimeInterval { lowPowerMode ? 2 : 5 }
+
+    /// Output, typing or returning to the window: resume and redraw promptly.
+    private func noteActivity() {
+        lastActivity = CACurrentMediaTime()
+        if pausedForIdle || overlay.preferredFramesPerSecond != effectsFramesPerSecond {
+            pausedForIdle = false
+            updatePaused()
+        }
+        guard !drawScheduled, !overlay.isPaused else { return }
+        drawScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.drawScheduled = false
+            if !self.overlay.isPaused { self.overlay.draw() }
+        }
     }
 
     // MARK: Rendering
@@ -386,14 +464,10 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             contentDirty = true
         }
 
-        // The effects animate at the Qt app's "effects FPS" (60 / frame skip),
-        // but changes to the text are drawn straight away.
-        let frameInterval = Double(ProfileStore.shared.effectsFrameSkip) / 60
-        if !contentDirty && now - lastRender < frameInterval - 0.002 { return }
         lastRender = now
 
-        // Recapture on change, and periodically in case something was missed.
-        if contentDirty || now - lastCapture > 0.5 {
+        // Recapture only when the contents changed (or the cursor blinked).
+        if contentDirty {
             captureTerminal(into: renderer)
             lastCapture = now
             contentDirty = false
@@ -405,6 +479,16 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if now - startTime > 4, !debugSnapshotWritten {
             debugSnapshotWritten = true
             writeDebugSnapshot(renderer: renderer, uniforms: uniforms, size: view.drawableSize)
+        }
+
+        // Idle: stop animating, or just blink the cursor.
+        if ProfileStore.shared.pauseEffectsWhenIdle && now - lastActivity > idleDelay {
+            if profile.blinkingCursor {
+                if view.preferredFramesPerSecond != 4 { view.preferredFramesPerSecond = 4 }
+            } else if !pausedForIdle {
+                pausedForIdle = true
+                DispatchQueue.main.async { [weak self] in self?.updatePaused() }
+            }
         }
     }
 
@@ -438,6 +522,29 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         let width = max(Int((size.width * scale).rounded()), 1)
         let height = max(Int((size.height * scale).rounded()), 1)
 
+        // Leave SwiftTerm's scroll bar out of the CRT image; it's still
+        // there for the mouse, just not drawn on the "glass".
+        var hidden = terminal.subviews.filter { $0 is NSScroller && !$0.isHidden }
+        // In the "off" half of a cursor blink, leave the caret out too.
+        if !cursorBlinkVisible {
+            hidden += terminal.subviews.filter { String(describing: type(of: $0)) == "CaretView" && !$0.isHidden }
+        }
+
+        // Apple silicon: draw straight into memory the GPU reads (no copy).
+        if let context = renderer.beginContentCapture(width: width, height: height) {
+            capturedPixelSize = (width, height)
+            context.setFillColor(CGColor(gray: 0, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            context.scaleBy(x: scale, y: scale)
+            capturing = true
+            hidden.forEach { $0.isHidden = true }
+            terminal.displayIgnoringOpacity(terminal.bounds, in: NSGraphicsContext(cgContext: context, flipped: false))
+            hidden.forEach { $0.isHidden = false }
+            capturing = false
+            renderer.endContentCapture()
+            return
+        }
+
         if snapshot?.pixelsWide != width || snapshot?.pixelsHigh != height {
             snapshot = NSBitmapImageRep(
                 bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
@@ -446,14 +553,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         }
         guard let snapshot, let data = snapshot.bitmapData else { return }
         snapshot.size = size
+        capturedPixelSize = (width, height)
 
-        // Leave SwiftTerm's scroll bar out of the CRT image; it's still
-        // there for the mouse, just not drawn on the "glass".
-        var hidden = terminal.subviews.filter { $0 is NSScroller && !$0.isHidden }
-        // In the "off" half of a cursor blink, leave the caret out too.
-        if !cursorBlinkVisible {
-            hidden += terminal.subviews.filter { String(describing: type(of: $0)) == "CaretView" && !$0.isHidden }
-        }
         capturing = true
         hidden.forEach { $0.isHidden = true }
         terminal.cacheDisplay(in: terminal.bounds, to: snapshot)
@@ -485,7 +586,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
                               Float(content.height) / viewSize.y)
         u.viewportSize = viewSize
 
-        let snapshotPixels = SIMD2<Float>(Float(snapshot?.pixelsWide ?? 1), Float(snapshot?.pixelsHigh ?? 1))
+        let snapshotPixels = SIMD2<Float>(Float(capturedPixelSize.width), Float(capturedPixelSize.height))
         u.virtualResolution = snapshotPixels / SIMD2(u.contentRect.z, u.contentRect.w)
         let drawablePixels = SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height))
         let density = (drawablePixels / u.virtualResolution).min()

@@ -135,6 +135,22 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
 
   A colour picked from the menu always wins over one set by a program.
 
+## Efficiency
+
+Both apps are built to stay light when nothing is happening:
+
+- **Pause effects when idle** (on by default, in Settings ▸ Performance and
+  the Qt app's Advanced settings): a few seconds after the last output or
+  key press, the effects stop animating and nothing is redrawn until
+  something happens. A blinking cursor keeps blinking.
+- The effects animate at the chosen frame rate (20 fps by default), while
+  text changes are still drawn straight away.
+- **Low Power Mode**: Cool Retro Term SE drops to 12 fps and pauses sooner.
+- **Apple silicon**: the terminal is drawn straight into memory the GPU reads
+  (unified memory), with no copy, and SwiftTerm's own view isn't redrawn
+  underneath the CRT image.
+- Hidden or fully covered windows don't render at all.
+
 ## How it works
 
 `CRTTerminalView` puts SwiftTerm's terminal view under a Metal view. SwiftTerm

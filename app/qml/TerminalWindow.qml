@@ -26,6 +26,9 @@ import "menus"
 ApplicationWindow {
     id: terminalWindow
 
+    // Coming back to a window resumes paused effects.
+    onActiveChanged: if (active) timeManager.noteActivity()
+
     width: 1024
     height: 768
 
