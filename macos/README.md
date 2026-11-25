@@ -115,13 +115,17 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   or a **90s Cubicle** (fabric partitions, fluorescent lights, sticky notes).
   The terminal keeps working as usual on the monitor's screen, which gives
   off light in the profile's colour.
-  - **Option-drag** looks around the room, **Option-scroll** or **pinch**
-    zooms, and **Option-double-click** (or View ▸ Office Mode ▸ Reset View)
-    goes back to the desk. The view drifts gently and follows the pointer a
-    little.
+  - With **View ▸ Office Mode ▸ Look Around** on, **Option-drag** looks
+    around the room, **Option-scroll** or **pinch** zooms, and
+    **Option-double-click** (or Reset View) goes back to the desk; the view
+    also drifts gently and follows the pointer a little. Turn it off for a
+    fixed view.
+  - The room is drawn in 3D with SceneKit on Metal. Turn off **3D Room** (or
+    on a Mac without Metal) for a picture of the same room instead, with the
+    terminal over the monitor's screen.
   - The terminal is a 4:3 screen in office mode, and the CRT effects are
     always on.
-  - It's drawn with SceneKit at the effects frame rate, and stops with the
+  - The 3D room is drawn at the effects frame rate, and stops with the
     effects when the window is hidden.
   - Also in Settings ▸ General, and shared with the Qt app (View ▸ Office
     Mode, or Settings ▸ Advanced), which builds the same rooms with Qt
@@ -137,7 +141,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   Always Show Tab Bar.
 - **Shift-Return** and **Control-Return** insert a new line in programs that
   support it, such as Claude Code, instead of submitting. (Option-Return and
-  Control-J do the same.)
+  Control-J do the same.) When a program turns on the extended (kitty)
+  keyboard protocol, as Claude Code does, they're sent in that protocol's
+  encoding. Control-Return never opens the context menu in the terminal.
 - **Tab names** follow the title the running program sets: the shell's
   current command or directory, or Claude Code's session name.
   **Double-click a tab** (or Shell ▸ Rename Tab…, Shift-Cmd-R) to give it a

@@ -1,0 +1,69 @@
+name: Upstream drift check
+
+# Once a month, compares this fork's default branch with the original
+# project's master (Swordfish90/cool-retro-term). If the original has
+# commits this fork doesn't, opens an issue listing them (labelled "bug" and
+# "upstream-drift"), or adds a comment to the one that's already open.
+
+on:
+  schedule:
+    - cron: '23 9 1 * *'   # 09:23 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare with the original project
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: https://github.com/Swordfish90/cool-retro-term.git
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch --quiet upstream master
+          behind=$(git rev-list --count HEAD..upstream/master)
+          ahead=$(git rev-list --count upstream/master..HEAD)
+          echo "Behind upstream master by $behind commits, ahead by $ahead."
+          if [ "$behind" -eq 0 ]; then
+            echo "Up to date with upstream master."
+            exit 0
+          fi
+
+          {
+            echo "The original project's \`master\` has **$behind** commit(s) that this fork's \`${GITHUB_REF_NAME}\` doesn't (this fork is $ahead commit(s) ahead)."
+            echo
+            echo "Upstream: $(git rev-parse --short upstream/master), checked $(date -u +%Y-%m-%d)."
+            echo
+            echo "### Commits to review"
+            echo '```'
+            git log --no-merges --format='%h %ad %s' --date=short HEAD..upstream/master | head -100
+            echo '```'
+            echo
+            echo "### Files changed upstream since the fork point"
+            echo '```'
+            git diff --stat "$(git merge-base HEAD upstream/master)" upstream/master | tail -40
+            echo '```'
+            echo
+            echo "To bring them in: \`git fetch https://github.com/Swordfish90/cool-retro-term.git master && git merge FETCH_HEAD\`, then make any user-facing change in both apps (see CLAUDE.md)."
+          } > drift.md
+
+          gh label create bug --color d73a4a --description "Something isn't working" 2>/dev/null || true
+          gh label create upstream-drift --color 5319e7 --description "The original project has changes this fork lacks" 2>/dev/null || true
+
+          title="Upstream drift: $behind commit(s) behind Swordfish90/cool-retro-term master"
+          existing=$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title"
+            gh issue comment "$existing" --body-file drift.md
+            echo "Updated issue #$existing."
+          else
+            gh issue create --title "$title" --body-file drift.md --label bug --label upstream-drift
+          fi

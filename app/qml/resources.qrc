@@ -24,6 +24,9 @@
         <file>TerminalTabs.qml</file>
         <file>images/crt256.png</file>
         <file>OfficeScene.qml</file>
+        <file>OfficePicture.qml</file>
+        <file>office/office-90s.jpg</file>
+        <file>office/office-80s.jpg</file>
         <file>office/blinds.jpg</file>
         <file>office/calendar.jpg</file>
         <file>office/ceiling-80s.jpg</file>

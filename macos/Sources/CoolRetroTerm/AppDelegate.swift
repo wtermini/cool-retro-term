@@ -154,6 +154,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeScene = scene
     }
 
+    @objc func toggleOffice3D(_ sender: Any?) {
+        ProfileStore.shared.office3D.toggle()
+    }
+
+    @objc func toggleOfficeLookAround(_ sender: Any?) {
+        ProfileStore.shared.officeLookAround.toggle()
+    }
+
     @objc func resetOfficeView(_ sender: Any?) {
         frontController?.currentSession?.crtView.resetOfficeView()
     }
@@ -241,8 +249,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
         case #selector(chooseOfficeScene(_:)):
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeScene.rawValue ? .on : .off
+        case #selector(toggleOffice3D(_:)):
+            menuItem.state = ProfileStore.shared.office3D ? .on : .off
+        case #selector(toggleOfficeLookAround(_:)):
+            menuItem.state = ProfileStore.shared.officeLookAround ? .on : .off
+            return ProfileStore.shared.office3D
         case #selector(resetOfficeView(_:)):
-            return frontController != nil && ProfileStore.shared.officeScene != .off
+            return frontController != nil && ProfileStore.shared.officeScene != .off && ProfileStore.shared.office3D
         case #selector(chooseCursorShape(_:)):
             menuItem.state = menuItem.tag == ProfileStore.shared.cursorShape ? .on : .off
         case #selector(toggleBlinkingCursor(_:)):
@@ -379,6 +392,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             office.addItem(entry)
         }
         office.addItem(.separator())
+        office.addItem(item("3D Room", #selector(toggleOffice3D(_:))))
+        office.addItem(item("Look Around", #selector(toggleOfficeLookAround(_:))))
         office.addItem(item("Reset View", #selector(resetOfficeView(_:))))
         view.addItem(withTitle: "Office Mode", action: nil, keyEquivalent: "").submenu = office
         view.addItem(.separator())

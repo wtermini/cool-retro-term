@@ -255,6 +255,8 @@ final class ProfileStore {
     private(set) var sharedPauseEffectsWhenIdle = false
     private(set) var sharedCursorShape = 0
     private(set) var sharedOfficeScene = OfficeScene.off
+    private(set) var sharedOffice3D = true
+    private(set) var sharedOfficeLookAround = true
 
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []
@@ -317,6 +319,11 @@ final class ProfileStore {
         if let b = settings["pauseEffectsWhenIdle"] as? Bool { sharedPauseEffectsWhenIdle = b }
         if let n = settings["cursorShape"] as? NSNumber { sharedCursorShape = min(max(n.intValue, 0), 2) }
         sharedOfficeScene = OfficeScene(rawValue: settings["officeScene"] as? String ?? "") ?? .off
+        if let b = settings["office3D"] as? Bool { sharedOffice3D = b }
+        if let b = settings["officeLookAround"] as? Bool { sharedOfficeLookAround = b }
+        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_3D"] {
+            sharedOffice3D = override != "0"   // used for CI screenshots
+        }
         if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_SCENE"],
            let scene = OfficeScene(rawValue: override) {
             sharedOfficeScene = scene   // used for CI screenshots
@@ -525,6 +532,18 @@ final class ProfileStore {
     var officeScene: OfficeScene {
         get { sharedOfficeScene }
         set { sharedOfficeScene = newValue; writeAppSetting("officeScene", newValue.rawValue) }
+    }
+
+    /// Office mode in 3D; a picture of the room when off. Shared with the Qt app.
+    var office3D: Bool {
+        get { sharedOffice3D }
+        set { sharedOffice3D = newValue; writeAppSetting("office3D", newValue) }
+    }
+
+    /// Let the user move the camera in the 3D room. Shared with the Qt app.
+    var officeLookAround: Bool {
+        get { sharedOfficeLookAround }
+        set { sharedOfficeLookAround = newValue; writeAppSetting("officeLookAround", newValue) }
     }
 
     /// Stop animating the effects a few seconds after the last activity.

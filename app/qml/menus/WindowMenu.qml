@@ -70,7 +70,9 @@ MenuBar {
             MenuItem { text: qsTr("80s Den"); checkable: true; checked: appSettings.officeScene === "80s"; onTriggered: appSettings.officeScene = "80s" }
             MenuItem { text: qsTr("90s Cubicle"); checkable: true; checked: appSettings.officeScene === "90s"; onTriggered: appSettings.officeScene = "90s" }
             MenuSeparator { }
-            MenuItem { text: qsTr("Reset View"); enabled: appSettings.officeScene !== ""; onTriggered: terminalTabs.resetOfficeView() }
+            MenuItem { text: qsTr("3D Room"); checkable: true; checked: appSettings.office3D; onTriggered: appSettings.office3D = checked }
+            MenuItem { text: qsTr("Look Around"); checkable: true; enabled: appSettings.office3D; checked: appSettings.officeLookAround; onTriggered: appSettings.officeLookAround = checked }
+            MenuItem { text: qsTr("Reset View"); enabled: appSettings.officeScene !== "" && appSettings.office3D; onTriggered: terminalTabs.resetOfficeView() }
         }
     }
     Menu {

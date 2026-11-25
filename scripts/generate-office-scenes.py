@@ -25,7 +25,10 @@ room you can look around. This script writes, into app/qml/office/:
 - office-80s.json and office-90s.json: the rooms, as a list of simple shapes
   (boxes, cylinders, spheres and flat panels) with materials, plus the
   lights, the camera and where the screen is;
-- the textures they use (wood, carpet, fabric, a poster and so on).
+- the textures they use (wood, carpet, fabric, a poster and so on);
+- office-80s.jpg and office-90s.jpg: the rooms seen straight on, used when
+  3D isn't available or is turned off. These are rendered from the rooms by
+  scripts/render-office-pictures.sh (with Qt Quick 3D), after this script.
 
 The Qt app builds the rooms with Qt Quick 3D (app/qml/OfficeScene.qml) and
 Cool Retro Term SE with SceneKit (macos/Sources/CoolRetroTerm/OfficeScene.swift),
@@ -433,7 +436,7 @@ def room_80s(out, rng):
          "shadows": False},
         {"type": "point", "position": [0, 220, 40], "color": "#ffe2b8", "intensity": 0.8, "range": 400},
     ]
-    return finish(sc, background="#1a120c", ambient=("#806048", 0.35))
+    return finish(sc, background="#1a120c", ambient=("#806048", 0.35), fill="#5a3a22")
 
 
 def room_90s(out, rng):
@@ -517,10 +520,38 @@ def room_90s(out, rng):
          "shadows": False},
         {"type": "point", "position": [0, 240, -20], "color": "#f0f6ff", "intensity": 1.0, "range": 500},
     ]
-    return finish(sc, background="#202228", ambient=("#7c8494", 0.4))
+    return finish(sc, background="#202228", ambient=("#7c8494", 0.4), fill="#4e5566")
 
 
-def finish(sc, background, ambient):
+# The 2D picture: the room from straight in front of the monitor, so the
+# screen is an upright rectangle in it.
+PICTURE_W, PICTURE_H = 2400, 1500
+PICTURE_TARGET = (0, 95, SCREEN_Z)
+PICTURE_DISTANCE = 85
+PICTURE_FOV = 40
+
+
+def project(x, y, z):
+    """Where a point lands in the picture, in pixels from the top left."""
+    focal = (PICTURE_H / 2) / math.tan(math.radians(PICTURE_FOV / 2))
+    depth = (PICTURE_TARGET[2] + PICTURE_DISTANCE) - z
+    return (PICTURE_W / 2 + (x - PICTURE_TARGET[0]) * focal / depth,
+            PICTURE_H / 2 - (y - PICTURE_TARGET[1]) * focal / depth)
+
+
+def picture(name, fill):
+    x0, y0 = project(-SCREEN_W / 2, SCREEN_Y + SCREEN_H / 2, SCREEN_Z)
+    x1, y1 = project(SCREEN_W / 2, SCREEN_Y - SCREEN_H / 2, SCREEN_Z)
+    # The monitor and its stand, which stay in view however the window is shaped.
+    mx0, my0 = project(-22, SCREEN_Y + 18, -41.5)
+    mx1, my1 = project(22, DESK_Y, -43)
+    return {"image": "office-%s.jpg" % name, "size": [PICTURE_W, PICTURE_H], "fill": fill,
+            "camera": {"target": list(PICTURE_TARGET), "distance": PICTURE_DISTANCE, "yaw": 0, "pitch": 0},
+            "screen": [round(x0, 1), round(y0, 1), round(x1 - x0, 1), round(y1 - y0, 1)],
+            "monitor": [round(mx0, 1), round(my0, 1), round(mx1 - mx0, 1), round(my1 - my0, 1)]}
+
+
+def finish(sc, background, ambient, fill):
     return {
         "name": sc.name,
         "background": background,
@@ -533,6 +564,7 @@ def finish(sc, background, ambient):
                    "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
         "screen": {"position": [0, SCREEN_Y, SCREEN_Z], "size": [SCREEN_W, SCREEN_H], "rotation": quat()},
         # Light cast by the screen, in the profile's text colour.
+        "picture": picture(sc.name, fill),
         "screenGlow": {"position": [0, SCREEN_Y, SCREEN_Z + 15], "intensity": 0.6, "range": 120},
         "lights": sc.lights,
         "objects": sc.objects,

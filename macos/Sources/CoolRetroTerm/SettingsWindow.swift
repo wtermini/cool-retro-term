@@ -121,7 +121,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
         switch pane {
-        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 600))
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 660))
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
         case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 370))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
@@ -188,6 +188,12 @@ final class SettingsModel: ObservableObject {
     }
     var burnInQuality: Binding<Double> {
         Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var office3D: Binding<Bool> {
+        Binding(get: { ProfileStore.shared.office3D }, set: { ProfileStore.shared.office3D = $0 })
+    }
+    var officeLookAround: Binding<Bool> {
+        Binding(get: { ProfileStore.shared.officeLookAround }, set: { ProfileStore.shared.officeLookAround = $0 })
     }
     var officeScene: Binding<OfficeScene> {
         Binding(get: { ProfileStore.shared.officeScene }, set: { ProfileStore.shared.officeScene = $0 })
@@ -343,6 +349,9 @@ private struct GeneralSettings: View {
                 Picker("Office mode", selection: model.officeScene) {
                     ForEach(OfficeScene.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
+                Toggle("Office mode in 3D (a picture of the room when off)", isOn: model.office3D)
+                Toggle("Look around the room (Option-drag, Option-scroll)", isOn: model.officeLookAround)
+                    .disabled(!ProfileStore.shared.office3D)
                 Toggle("Always show the tab bar", isOn: model.alwaysShowTabBar)
                 Toggle("Show the tab bar in full screen", isOn: model.tabBarInFullScreen)
                 Toggle("Show the terminal size when resizing", isOn: model.showTerminalSize)

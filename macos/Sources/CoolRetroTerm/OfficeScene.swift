@@ -24,7 +24,8 @@ import SceneKit
 import simd
 
 /// Office mode: the terminal is the screen of a monitor on a desk in a 3D
-/// room. Shared with the Qt app (`officeScene` in its settings, and
+/// room, drawn with SceneKit on Metal (OfficeSceneView), or, with 3D turned
+/// off, over a picture of the same room (OfficePictureView). Shared with the Qt app (`officeScene` in its settings, and
 /// app/qml/OfficeScene.qml, which builds the same rooms with Qt Quick 3D).
 ///
 /// The rooms are described in office/office-<scene>.json, made by
@@ -62,6 +63,15 @@ struct OfficeRoom: Decodable {
     }
     struct Screen: Decodable { var position: [Float]; var size: [Float]; var rotation: [Float] }
     struct Glow: Decodable { var position: [Float]; var intensity: Float; var range: Float }
+    /// The room seen straight on, for 2D: rectangles are in the picture's
+    /// pixels, from the top left.
+    struct Picture: Decodable {
+        var image: String
+        var size: [CGFloat]
+        var fill: String
+        var screen: [CGFloat]
+        var monitor: [CGFloat]
+    }
     struct Object: Decodable {
         var shape: String
         var position: [Float]
@@ -86,12 +96,76 @@ struct OfficeRoom: Decodable {
     var camera: Camera
     var screen: Screen
     var screenGlow: Glow
+    var picture: Picture
     var lights: [Light]
     var objects: [Object]
 
     static func load(_ scene: OfficeScene) -> OfficeRoom? {
         guard scene != .off else { return nil }
         return AppResources.decode(OfficeRoom.self, from: "Office/office-\(scene.rawValue).json")
+    }
+}
+
+/// Office mode in 2D: a picture of the room (rendered from the 3D room,
+/// straight on) behind the terminal, which goes over the monitor's screen.
+final class OfficePictureView: NSView {
+    private(set) var officeScene: OfficeScene = .off
+    private var picture: OfficeRoom.Picture?
+    private let imageLayer = CALayer()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        isHidden = true
+        imageLayer.contentsGravity = .resize
+        imageLayer.minificationFilter = .trilinear
+        imageLayer.actions = ["bounds": NSNull(), "position": NSNull(), "contents": NSNull()]
+        layer?.addSublayer(imageLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// For snapshots: the picture and where it's drawn.
+    var imageFrame: CGRect { imageLayer.frame }
+    var image: CGImage? { (imageLayer.contents as? NSImage)?.cgImage(forProposedRect: nil, context: nil, hints: nil) }
+    var fillColor: NSColor { picture.map { NSColor(hex: $0.fill) } ?? .black }
+
+    func show(_ scene: OfficeScene) {
+        guard scene != officeScene else { return }
+        officeScene = scene
+        picture = OfficeRoom.load(scene)?.picture
+        isHidden = picture == nil
+        if let picture {
+            imageLayer.contents = NSImage(contentsOf: AppResources.url("Office/\(picture.image)"))
+            layer?.backgroundColor = NSColor(hex: picture.fill).cgColor
+        }
+        needsLayout = true
+    }
+
+    /// Fills the view with the picture, centred on the monitor, zooming out
+    /// further if needed so the whole monitor stays in view. Returns where
+    /// the terminal goes, in this view's coordinates.
+    func layoutPicture() -> CGRect? {
+        guard let picture else { return nil }
+        let size = bounds.size
+        let imageSize = CGSize(width: picture.size[0], height: picture.size[1])
+        let m = CGRect(x: picture.monitor[0], y: picture.monitor[1], width: picture.monitor[2], height: picture.monitor[3])
+        var scale = max(size.width / imageSize.width, size.height / imageSize.height)
+        scale = min(scale, size.width / m.width, size.height / m.height)
+        let w = imageSize.width * scale
+        let h = imageSize.height * scale
+        func offset(_ view: CGFloat, _ image: CGFloat, _ centre: CGFloat) -> CGFloat {
+            guard image >= view else { return (view - image) / 2 }
+            return min(max(view / 2 - centre * scale, view - image), 0)
+        }
+        let x = offset(size.width, w, m.midX)
+        let top = offset(size.height, h, m.midY)
+        imageLayer.frame = CGRect(x: x, y: size.height - top - h, width: w, height: h)
+        let s = picture.screen
+        return CGRect(x: x + s[0] * scale, y: size.height - top - (s[1] + s[3]) * scale,
+                      width: s[2] * scale, height: s[3] * scale).integral
     }
 }
 
@@ -115,6 +189,18 @@ final class OfficeSceneView: SCNView {
     private var pointer = SIMD2<Float>(0, 0)
     private var time: Float = 0
     private var orbitStart: (point: NSPoint, yaw: Float, pitch: Float)?
+
+    /// Let the user move the camera, with the gentle drift and parallax.
+    var lookAround = true {
+        didSet {
+            guard lookAround != oldValue else { return }
+            if !lookAround {
+                pointer = .zero
+                orbitStart = nil
+                resetView()
+            }
+        }
+    }
 
     init(frame: NSRect, device: MTLDevice?) {
         var options: [String: Any] = [
@@ -310,8 +396,9 @@ final class OfficeSceneView: SCNView {
 
     private func updateCamera() {
         guard let camera = room?.camera else { return }
-        let effectiveYaw = yaw + 1.2 * sin(time * 0.11) + pointer.x * 3
-        let effectivePitch = pitch + 0.6 * sin(time * 0.17) - pointer.y * 2
+        let motion: Float = lookAround ? 1 : 0
+        let effectiveYaw = yaw + (1.2 * sin(time * 0.11) + pointer.x * 3) * motion
+        let effectivePitch = pitch + (0.6 * sin(time * 0.17) - pointer.y * 2) * motion
         let yawRad = effectiveYaw * .pi / 180
         let pitchRad = effectivePitch * .pi / 180
         let target = vector(camera.target)
@@ -349,7 +436,7 @@ final class OfficeSceneView: SCNView {
     private func clamp(_ v: Float, _ lo: Float, _ hi: Float) -> Float { min(max(v, lo), hi) }
 
     override func mouseDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.option) {
+        if lookAround, event.modifierFlags.contains(.option) {
             if event.clickCount == 2 {
                 resetView()
             } else {
@@ -393,7 +480,7 @@ final class OfficeSceneView: SCNView {
     override func otherMouseUp(with event: NSEvent) { forward(event) }
 
     override func scrollWheel(with event: NSEvent) {
-        if event.modifierFlags.contains(.option), let camera = room?.camera {
+        if lookAround, event.modifierFlags.contains(.option), let camera = room?.camera {
             let delta = Float(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 30 : event.scrollingDeltaY)
             distance = clamp(distance * pow(0.9, delta), camera.minDistance, camera.maxDistance)
             updateCamera()
@@ -403,7 +490,7 @@ final class OfficeSceneView: SCNView {
     }
 
     override func magnify(with event: NSEvent) {
-        guard let camera = room?.camera else { return }
+        guard lookAround, let camera = room?.camera else { return }
         distance = clamp(distance / Float(1 + event.magnification), camera.minDistance, camera.maxDistance)
         updateCamera()
     }
@@ -417,9 +504,11 @@ final class OfficeSceneView: SCNView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        pointer = SIMD2(clamp(Float(point.x / max(bounds.width, 1)) * 2 - 1, -1, 1),
-                        clamp(1 - Float(point.y / max(bounds.height, 1)) * 2, -1, 1))
-        updateCamera()
+        if lookAround {
+            pointer = SIMD2(clamp(Float(point.x / max(bounds.width, 1)) * 2 - 1, -1, 1),
+                            clamp(1 - Float(point.y / max(bounds.height, 1)) * 2, -1, 1))
+            updateCamera()
+        }
         let textCursor = isOverScreen(event) && !(host?.programUsesMouse ?? false)
         (textCursor ? NSCursor.iBeam : NSCursor.arrow).set()
     }

@@ -82,6 +82,17 @@ ColumnLayout {
                 }
             }
             CheckBox {
+                text: qsTr("Office Mode in 3D (a picture of the room when off)")
+                checked: appSettings.office3D
+                onCheckedChanged: appSettings.office3D = checked
+            }
+            CheckBox {
+                text: qsTr("Look around the room (Option/Alt-drag, Option/Alt-scroll)")
+                enabled: appSettings.office3D
+                checked: appSettings.officeLookAround
+                onCheckedChanged: appSettings.officeLookAround = checked
+            }
+            CheckBox {
                 text: qsTr("Always show the tab bar")
                 checked: appSettings.alwaysShowTabBar
                 onCheckedChanged: appSettings.alwaysShowTabBar = checked

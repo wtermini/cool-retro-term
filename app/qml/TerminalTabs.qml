@@ -307,17 +307,32 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Office mode: the terminal is laid out as a 4:3 screen and shown
-            // on the monitor in a 3D room (OfficeScene.qml), which covers it.
+            // Office mode. In 3D, the terminal is laid out as a 4:3 screen and
+            // shown on the monitor in a 3D room (OfficeScene.qml), drawn over
+            // it. In 2D (3D turned off, Qt Quick 3D missing or no GPU), it's
+            // placed over the monitor in a picture of the room (OfficePicture.qml).
             readonly property bool officeMode: appSettings.officeScene === "80s" || appSettings.officeScene === "90s"
+            readonly property bool can3D: GraphicsInfo.api !== GraphicsInfo.Software
+                                          && officeLoader.status !== Loader.Error
+            readonly property bool office3D: officeMode && appSettings.office3D && can3D
+            readonly property bool office2D: officeMode && !office3D
             readonly property real screenHeight: Math.min(height, width * 3 / 4)
+
+            OfficePicture {
+                id: officePicture
+                anchors.fill: parent
+                visible: terminalArea.office2D
+                scene: terminalArea.officeMode ? appSettings.officeScene : "80s"
+            }
 
             StackLayout {
                 id: stack
-                width: terminalArea.officeMode ? Math.round(terminalArea.screenHeight * 4 / 3) : terminalArea.width
-                height: terminalArea.officeMode ? Math.round(terminalArea.screenHeight) : terminalArea.height
-                x: (terminalArea.width - width) / 2
-                y: (terminalArea.height - height) / 2
+                width: terminalArea.office3D ? Math.round(terminalArea.screenHeight * 4 / 3)
+                     : terminalArea.office2D ? officePicture.screenRect.width : terminalArea.width
+                height: terminalArea.office3D ? Math.round(terminalArea.screenHeight)
+                      : terminalArea.office2D ? officePicture.screenRect.height : terminalArea.height
+                x: terminalArea.office2D ? officePicture.screenRect.x : (terminalArea.width - width) / 2
+                y: terminalArea.office2D ? officePicture.screenRect.y : (terminalArea.height - height) / 2
                 currentIndex: tabBar.currentIndex
 
                 Repeater {
@@ -347,15 +362,21 @@ Item {
                 }
             }
 
+            // Loaded by name, so the app still runs (in 2D) without Qt Quick 3D.
             Loader {
                 id: officeLoader
                 anchors.fill: parent
-                active: terminalArea.officeMode
-                sourceComponent: OfficeScene {
-                    scene: appSettings.officeScene
-                    screenItem: stack
-                    time: timeManager.time
-                    glowColor: appSettings.fontColor
+                active: terminalArea.officeMode && appSettings.office3D
+                visible: terminalArea.office3D
+                source: active ? "OfficeScene.qml" : ""
+                onStatusChanged: if (status === Loader.Error)
+                    console.warn("Office mode: 3D isn't available, showing the picture instead.")
+                onLoaded: {
+                    item.screenItem = stack
+                    item.scene = Qt.binding(() => appSettings.officeScene)
+                    item.time = Qt.binding(() => timeManager.time)
+                    item.glowColor = Qt.binding(() => appSettings.fontColor)
+                    item.lookAround = Qt.binding(() => appSettings.officeLookAround)
                 }
             }
         }

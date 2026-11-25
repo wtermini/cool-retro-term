@@ -27,7 +27,11 @@ Alternatively, most distributions such as Ubuntu, Fedora or Arch already package
 
 ## Office mode
 
-View ▸ Office Mode puts the terminal on the screen of a CRT monitor in a 3D room, an **80s Den** or a **90s Cubicle**. Option/Alt-drag looks around, Option/Alt-scroll zooms and Option/Alt-double-click goes back to the desk. The rooms are original, built by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py), and drawn with Qt Quick 3D here and SceneKit in Cool Retro Term SE; the setting is shared between them.
+View ▸ Office Mode puts the terminal on the screen of a CRT monitor in a 3D room, an **80s Den** or a **90s Cubicle**, drawn on the GPU (Qt Quick 3D on OpenGL or Metal here, SceneKit on Metal in Cool Retro Term SE). With **Look Around** on, Option/Alt-drag looks around, Option/Alt-scroll zooms and Option/Alt-double-click goes back to the desk. Turn off **3D Room**, or run without Qt Quick 3D or a GPU, and you get a picture of the same room instead. The rooms are original, built by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py) (the pictures are rendered from them by `scripts/render-office-pictures.sh`), and the settings are shared between the two apps.
+
+## Keeping up with the original
+
+A GitHub Actions workflow (`upstream-drift.yml`) checks once a month whether [Swordfish90/cool-retro-term](https://github.com/Swordfish90/cool-retro-term)'s `master` has commits this fork doesn't, and opens an issue listing them (labelled `bug` and `upstream-drift`).
 
 ## Cool Retro Term SE (native macOS app)
 

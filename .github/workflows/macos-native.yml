@@ -40,13 +40,15 @@ jobs:
           APP_BIN="macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm"
           mkdir -p screenshots
           status=0
-          # "profile|office scene": the last two show office mode.
-          for entry in "Monochrome Green|" "Default Amber|" "IBM VGA 8x16|" "Default Amber|80s" "Monochrome Green|90s"; do
-            profile="${entry%|*}"
-            scene="${entry#*|}"
+          # "profile|office scene|3D (1) or picture (0)".
+          for entry in "Monochrome Green||1" "Default Amber||1" "IBM VGA 8x16||1" \
+                       "Default Amber|80s|1" "Monochrome Green|90s|1" "Default Amber|80s|0"; do
+            IFS='|' read -r profile scene office3d <<< "$entry"
             name=$(echo "$profile" | tr ' ' '-')${scene:+-office-$scene}
+            [ "$office3d" = 0 ] && name="$name-2d"
             out="$PWD/screenshots/$name.png"
-            export CRT_PROFILE="$profile" CRT_OFFICE_SCENE="$scene" CRT_SNAPSHOT_PATH="$out" CRT_SNAPSHOT_QUIT=1 \
+            export CRT_PROFILE="$profile" CRT_OFFICE_SCENE="$scene" CRT_OFFICE_3D="$office3d" \
+              CRT_SNAPSHOT_PATH="$out" CRT_SNAPSHOT_QUIT=1 \
               CRT_SNAPSHOT_COMMAND="sh $PWD/macos/scripts/demo.sh"
             lldb --batch -o run -k "thread backtrace all" -k "quit 1" -- "$APP_BIN" \
               > "screenshots/$name.log" 2>&1 &

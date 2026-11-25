@@ -21,8 +21,13 @@ import QtQuick
 import QtQuick3D
 
 /// Office mode: the terminal is the screen of a monitor on a desk in a 3D
-/// room. Option/Alt-drag looks around, Option/Alt-scroll (or pinch) zooms,
-/// and Option/Alt-double-click goes back to the starting view.
+/// room, drawn on the GPU (Metal on macOS, OpenGL elsewhere). With "look
+/// around" on, Option/Alt-drag looks around, Option/Alt-scroll (or pinch)
+/// zooms, Option/Alt-double-click goes back to the starting view, and the
+/// view drifts gently and follows the pointer a little.
+///
+/// Where 3D isn't available, or it's turned off, OfficePicture.qml shows a
+/// picture of the same room instead.
 ///
 /// The rooms are described in office/office-<scene>.json, made by
 /// scripts/generate-office-scenes.py and shared with Cool Retro Term SE,
@@ -37,9 +42,15 @@ View3D {
     /// Seconds, for the gentle camera drift.
     property real time: 0
     property color glowColor: "white"
+    /// Let the user move the camera (and the gentle drift and parallax).
+    property bool lookAround: true
+    /// Show the room straight on, as in the 2D picture (used to render it).
+    property bool pictureView: false
+    readonly property bool moving: lookAround && !pictureView
 
     property var room: ({})
     readonly property var cameraInfo: room.camera || null
+    readonly property var viewInfo: pictureView && room.picture ? room.picture.camera : cameraInfo
 
     // Where the camera is: an orbit around the screen.
     property real yaw: 0
@@ -50,12 +61,14 @@ View3D {
     property real pointerY: 0
 
     function resetView() {
-        if (!cameraInfo)
+        if (!viewInfo)
             return
-        yaw = cameraInfo.yaw
-        pitch = cameraInfo.pitch
-        distance = cameraInfo.distance
+        yaw = viewInfo.yaw
+        pitch = viewInfo.pitch
+        distance = viewInfo.distance
     }
+    onMovingChanged: if (!moving) resetView()
+    onPictureViewChanged: resetView()
 
     function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi) }
 
@@ -103,12 +116,13 @@ View3D {
 
     PerspectiveCamera {
         id: camera
-        readonly property real drift: 1.2 * Math.sin(view.time * 0.11)
-        readonly property real driftPitch: 0.6 * Math.sin(view.time * 0.17)
-        readonly property real effectiveYaw: view.yaw + drift + view.pointerX * 3
-        readonly property real effectivePitch: view.pitch + driftPitch - view.pointerY * 2
+        readonly property real motion: view.moving ? 1 : 0
+        readonly property real drift: 1.2 * Math.sin(view.time * 0.11) * motion
+        readonly property real driftPitch: 0.6 * Math.sin(view.time * 0.17) * motion
+        readonly property real effectiveYaw: view.yaw + drift + view.pointerX * 3 * motion
+        readonly property real effectivePitch: view.pitch + driftPitch - view.pointerY * 2 * motion
         readonly property var orientation: view.mul(view.axisAngle(1, effectiveYaw), view.axisAngle(0, effectivePitch))
-        readonly property var target: view.cameraInfo ? view.cameraInfo.target : [0, 0, 0]
+        readonly property var target: view.viewInfo ? view.viewInfo.target : [0, 0, 0]
         readonly property real yawRad: effectiveYaw * Math.PI / 180
         readonly property real pitchRad: effectivePitch * Math.PI / 180
 
@@ -226,6 +240,7 @@ View3D {
     // Option/Alt-double-click to reset. Everything else goes to the terminal.
     DragHandler {
         id: orbit
+        enabled: view.moving
         target: null
         acceptedModifiers: Qt.AltModifier
         property real startYaw: 0
@@ -239,6 +254,7 @@ View3D {
         }
     }
     WheelHandler {
+        enabled: view.moving
         acceptedModifiers: Qt.AltModifier
         onWheel: (event) => {
             if (!view.cameraInfo)
@@ -249,6 +265,7 @@ View3D {
         }
     }
     PinchHandler {
+        enabled: view.moving
         target: null
         property real startDistance: 100
         onActiveChanged: if (active) startDistance = view.distance
@@ -256,10 +273,12 @@ View3D {
                                   view.cameraInfo.minDistance, view.cameraInfo.maxDistance)
     }
     TapHandler {
+        enabled: view.moving
         acceptedModifiers: Qt.AltModifier
         onDoubleTapped: view.resetView()
     }
     HoverHandler {
+        enabled: view.moving
         id: hover
         onPointChanged: {
             view.pointerX = view.clamp(point.position.x / Math.max(view.width, 1) * 2 - 1, -1, 1)

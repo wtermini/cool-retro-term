@@ -31,22 +31,34 @@ final class RetroTerminalView: LocalProcessTerminalView {
     /// support it (such as Claude Code) instead of submitting.
     ///
     /// Terminals normally send the same byte for Return with or without
-    /// these modifiers. When the program has turned on the extended keyboard
-    /// protocol, SwiftTerm already reports them distinctly, so this leaves
-    /// them alone. Otherwise:
-    /// - Shift-Return sends ESC followed by Return, the same as Option-Return
-    ///   with Option as Meta (zsh inserts a line break for it);
-    /// - Control-Return sends a line feed, the same as Control-J (shells
-    ///   treat it like Return).
+    /// these modifiers, so:
+    /// - when the program has turned on the extended (kitty) keyboard
+    ///   protocol, as Claude Code does, they're sent in its encoding,
+    ///   CSI 13;2u and CSI 13;5u;
+    /// - otherwise, with the new line keys setting on, Shift-Return sends ESC
+    ///   followed by Return, the same as Option-Return with Option as Meta
+    ///   (zsh inserts a line break for it), and Control-Return sends a line
+    ///   feed, the same as Control-J (shells treat it like Return);
+    /// - with the setting off, Control-Return is a plain Return.
+    ///
+    /// Control-Return is always handled here: AppKit would otherwise treat
+    /// it as "show the context menu".
     /// Returns true if it handled the key.
     func handleModifiedReturn(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection([.shift, .control, .option, .command])
-        guard ProfileStore.shared.newLineKeys,
-              event.keyCode == 36 || event.keyCode == 76,   // Return, keypad Enter
+        guard event.keyCode == 36 || event.keyCode == 76,   // Return, keypad Enter
               flags == .shift || flags == .control,
-              !hasMarkedText(),
-              terminal.keyboardEnhancementFlags.isEmpty else { return false }
-        send(data: flags == .shift ? ArraySlice([0x1b, 0x0d]) : ArraySlice([0x0a]))
+              !hasMarkedText() else { return false }
+        let control = flags == .control
+        if !terminal.keyboardEnhancementFlags.isEmpty {
+            send(data: ArraySlice(Array((control ? "\u{1b}[13;5u" : "\u{1b}[13;2u").utf8)))
+        } else if ProfileStore.shared.newLineKeys {
+            send(data: control ? ArraySlice([0x0a]) : ArraySlice([0x1b, 0x0d]))
+        } else if control {
+            send(data: ArraySlice([0x0d]))
+        } else {
+            return false
+        }
         return true
     }
 
@@ -184,6 +196,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     let terminal: RetroTerminalView
     private let overlay: CRTOverlayView
     private let officeView: OfficeSceneView
+    private let officePicture = OfficePictureView(frame: .zero)
     private var officeTimer: Timer?
     private var officeTexture: (target: MTLTexture, view: MTLTexture)?
     private var renderer: CRTRenderer?
@@ -236,6 +249,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         terminal.installSecurityPolicy()
         terminal.menu = (NSApp.delegate as? AppDelegate)?.makeContextMenu()
+        addSubview(officePicture)
         addSubview(terminal)
 
         overlay.host = self
@@ -309,9 +323,17 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     private var showsEffects: Bool { (effectsEnabled || officeActive) && renderer != nil }
 
-    /// Office mode: the CRT is drawn into a texture shown on the monitor of
-    /// a 3D room (OfficeSceneView) instead of filling the view.
-    private var officeActive: Bool { ProfileStore.shared.officeScene != .off && renderer != nil }
+    /// Office mode in 3D: the CRT is drawn into a texture shown on the
+    /// monitor of a 3D room (OfficeSceneView) instead of filling the view.
+    private var officeActive: Bool {
+        ProfileStore.shared.officeScene != .off && ProfileStore.shared.office3D && renderer != nil
+    }
+
+    /// Office mode in 2D (3D turned off, or no Metal): the CRT goes over the
+    /// monitor in a picture of the room (OfficePictureView).
+    private var officePictureActive: Bool {
+        ProfileStore.shared.officeScene != .off && !officeActive
+    }
 
     /// Whether the program in the terminal is receiving mouse events
     /// (mouse reporting), in which case the pointer is an arrow.
@@ -368,6 +390,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             : NSColor(rgb: profile.effectiveBackgroundColor).cgColor
 
         officeView.show(officeActive ? store.officeScene : .off)
+        officeView.lookAround = store.officeLookAround
+        officePicture.show(officePictureActive ? store.officeScene : .off)
         officeView.glowColor = NSColor(rgb: profile.effectiveFontColor)
         overlay.isHidden = !showsEffects || officeActive
         terminal.suppressesOwnDrawing = showsEffects
@@ -445,9 +469,13 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if overlay.drawableSize != size { overlay.drawableSize = size }
     }
 
-    /// The part of the view the CRT image covers: all of it, or in office
-    /// mode a 4:3 screen in the middle (shown on the monitor, not directly).
+    /// The part of the view the CRT image covers: all of it; in 3D office
+    /// mode a 4:3 screen in the middle (shown on the monitor, not directly);
+    /// in 2D office mode the monitor's screen in the picture.
     private var screenRect: CGRect {
+        if officePictureActive {
+            return officePicture.layoutPicture() ?? bounds
+        }
         guard officeActive else { return bounds }
         let height = min(bounds.height, bounds.width * 3 / 4)
         let width = height * 4 / 3
@@ -456,8 +484,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     }
 
     private func layoutSubviewsNow() {
-        let screen = screenRect
         officeView.frame = bounds
+        officePicture.frame = bounds
+        let screen = screenRect
         overlay.frame = screen
         updateDrawableSize()
         let margin = showsEffects ? profile.marginPoints : 4
@@ -659,6 +688,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             ? officeView.snapshot().cgImage(forProposedRect: nil, context: nil, hints: nil)
             : renderer.renderImage(width: Int(size.width), height: Int(size.height),
                                    pixelFormat: overlay.colorPixelFormat, uniforms: uniforms)
+                .flatMap { officePictureActive ? composeWithOfficePicture($0) : $0 }
         if let image, let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
             do {
                 try png.write(to: URL(fileURLWithPath: path))
@@ -672,6 +702,27 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if environment["CRT_SNAPSHOT_QUIT"] == "1" {
             NSApp.terminate(nil)
         }
+    }
+
+    /// In 2D office mode, puts the rendered screen into the picture, as the
+    /// window shows it.
+    private func composeWithOfficePicture(_ crt: CGImage) -> CGImage? {
+        guard let picture = officePicture.image else { return crt }
+        let screen = screenRect
+        let scale = CGFloat(crt.width) / max(screen.width, 1)
+        let width = Int((bounds.width * scale).rounded()), height = Int((bounds.height * scale).rounded())
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return crt }
+        func scaled(_ r: CGRect) -> CGRect {
+            CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
+        }
+        context.setFillColor(officePicture.fillColor.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.interpolationQuality = .high
+        context.draw(picture, in: scaled(officePicture.imageFrame))
+        context.draw(crt, in: scaled(screen))
+        return context.makeImage()
     }
 
     private func captureTerminal(into renderer: CRTRenderer) {

@@ -49,6 +49,8 @@ QtObject {
     property bool pauseEffectsWhenIdle: false  // optional: stop animating effects when nothing happens
     property int cursorShape: 0                // 0 solid block, 1 underline, 2 bar
     property string officeScene: ""           // office mode: "" off, "80s" or "90s"
+    property bool office3D: true               // office mode in 3D (a picture when off)
+    property bool officeLookAround: true       // move the camera in the 3D room
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
@@ -179,6 +181,8 @@ QtObject {
             "pauseEffectsWhenIdle": pauseEffectsWhenIdle,
             "cursorShape": cursorShape,
             "officeScene": officeScene,
+            "office3D": office3D,
+            "officeLookAround": officeLookAround,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -273,6 +277,8 @@ QtObject {
         pauseEffectsWhenIdle = settings.pauseEffectsWhenIdle !== undefined ? settings.pauseEffectsWhenIdle : pauseEffectsWhenIdle
         cursorShape = settings.cursorShape !== undefined ? settings.cursorShape : cursorShape
         officeScene = settings.officeScene !== undefined ? settings.officeScene : officeScene
+        office3D = settings.office3D !== undefined ? settings.office3D : office3D
+        officeLookAround = settings.officeLookAround !== undefined ? settings.officeLookAround : officeLookAround
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality
