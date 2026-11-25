@@ -513,15 +513,18 @@ LCD_WIDE = Monitor("wide", 47.4, 29.6, DESK_Y + 9 + 3.5 + 29.6 / 2, -38, 25.7, D
 LCD_WIDE.lcd = (2.0, 2.2, 3.5)
 
 
-# Video terminals for the 70s room: one smooth off-white piece with the
-# keyboard built into a sloped deck at the front and the screen deep in a
-# bevelled recess (Widescreen is a wide, 132-column-style model).
-TERM_BEVEL, TERM_DEPTH, TERM_TOP = 5.0, 3.0, 7.0   # recess width and depth; face above it
+# Video terminals for the 70s room: one smooth, curvy off-white piece. The
+# face leans back and sweeps down into a low keyboard deck, the top rolls
+# over in a big curve, and the screen sits in a bevelled recess
+# (Widescreen is a wide, 132-column-style model).
+TERM_BEVEL, TERM_DEPTH, TERM_TOP = 5.0, 4.5, 9.0   # recess width, its depth mid-screen; face above it
+TERM_TILT = 10.0                                    # how far the face leans back, degrees
+TERM_SIDE = 13.0                                    # face either side of the recess
 
 
 def terminal_monitor(name, w, h, z, distance):
-    sy = DESK_Y + 15 + h / 2          # screen bottom 15 cm above the desk, over the deck
-    return Monitor(name, w, h, sy, z, (w + 20) / 2, sy + h / 2 + TERM_BEVEL + TERM_TOP, distance)
+    sy = DESK_Y + 16 + h / 2          # screen bottom 16 cm above the desk, over the deck
+    return Monitor(name, w, h, sy, z, w / 2 + TERM_SIDE, sy + h / 2 + TERM_BEVEL + TERM_TOP, distance)
 
 
 TERM_STANDARD = terminal_monitor("standard", 29.6, 22.2, -48, 98)
@@ -529,8 +532,8 @@ TERM_WIDE = terminal_monitor("wide", 47.0, 29.4, -48, 112)
 
 
 def keyboard_terminal():
-    """A terminal's built-in keyboard: grey keys, dark grey modifiers and a
-    long dark space bar, a numeric keypad on the right."""
+    """A terminal's built-in keyboard: dark grey keys, light grey modifiers
+    and space bar, a numeric keypad on the right."""
     w, h = 640, 240
     img = Image.new("RGB", (w, h), (226, 222, 210))
     d = ImageDraw.Draw(img)
@@ -543,8 +546,8 @@ def keyboard_terminal():
             wide = 6 if (r == 4 and i == 2) else 1
             width = kw * wide + gap * (wide - 1)
             is_dark = r == 0 or i in (0, 13) or (r == 4 and i == 2) or (i > 10 and r % 2)
-            d.rounded_rectangle([x, y, x + width, y + 28], radius=3, fill=dark if is_dark else light)
-            d.rounded_rectangle([x + 3, y + 2, x + width - 3, y + 20], radius=3, fill=top_dark if is_dark else top_light)
+            d.rounded_rectangle([x, y, x + width, y + 28], radius=3, fill=light if is_dark else dark)
+            d.rounded_rectangle([x + 3, y + 2, x + width - 3, y + 20], radius=3, fill=top_light if is_dark else top_dark)
             x += width + gap
         for i in range(4):   # keypad
             px = w - 14 - (4 - i) * (kw + gap)
@@ -554,81 +557,196 @@ def keyboard_terminal():
     return img
 
 
+def rounded_outline(corners):
+    """A closed outline in the (z, y) plane with rounded corners: `corners`
+    is a list of ((z, y), radius). Returns the points along it, with each
+    corner replaced by an arc (concave corners curve the other way)."""
+    points = []
+    n = len(corners)
+    for i, (c, radius) in enumerate(corners):
+        c = (float(c[0]), float(c[1]))
+        if radius <= 0:
+            points.append(c)
+            continue
+        prev, nxt = corners[i - 1][0], corners[(i + 1) % n][0]
+        u1 = (prev[0] - c[0], prev[1] - c[1])
+        u2 = (nxt[0] - c[0], nxt[1] - c[1])
+        l1, l2 = math.hypot(*u1), math.hypot(*u2)
+        u1, u2 = (u1[0] / l1, u1[1] / l1), (u2[0] / l2, u2[1] / l2)
+        theta = math.acos(max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1])))
+        d = radius / math.tan(theta / 2)
+        t1 = (c[0] + u1[0] * d, c[1] + u1[1] * d)
+        t2 = (c[0] + u2[0] * d, c[1] + u2[1] * d)
+        bis = (u1[0] + u2[0], u1[1] + u2[1])
+        bl = math.hypot(*bis)
+        k = radius / math.sin(theta / 2) / bl
+        centre = (c[0] + bis[0] * k, c[1] + bis[1] * k)
+        a1 = math.atan2(t1[1] - centre[1], t1[0] - centre[0])
+        a2 = math.atan2(t2[1] - centre[1], t2[0] - centre[0])
+        sweep = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        steps = max(2, int(abs(sweep) / math.radians(7)) + 1)
+        for s in range(steps + 1):
+            a = a1 + sweep * s / steps
+            points.append((centre[0] + radius * math.cos(a), centre[1] + radius * math.sin(a)))
+    return points
+
+
 def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
-    """The terminal, screen facing +Z: a keyboard deck at the front, a body
-    whose face sits in front of the screen with a bevelled recess round it,
-    and a flat top with vents. Places for notes on the face's top corners
-    and the body's sides."""
+    """The terminal, screen facing +Z. Its side outline is drawn as a
+    rounded polygon: a cut-away back, a flat top that rolls over into a face
+    leaning back, which sweeps down into a low keyboard deck with a rounded
+    front lip. The shell follows that outline in thin strips, the sides are
+    filled in under it, and the face has a bevelled recess for the screen."""
     sy, sz = mon.y, mon.z
-    W = mon.w + 20
+    W = mon.w + 2 * TERM_SIDE
     B, D = TERM_BEVEL, TERM_DEPTH
-    top = mon.top                      # top of the face and the body
-    face_z = sz + D
+    tilt = math.radians(TERM_TILT)
+    lid = mon.top
     left, right = -mon.w / 2, mon.w / 2
     upper, lower = sy + mon.h / 2, sy - mon.h / 2
-
-    # The body: a block from the back to the face, with its top and front
-    # edges rounded off (cylinders along the edges, spheres at the corners).
-    r = 3.0                            # radius of the rounded edges
-    lid = top + 1.2                    # top of the lid
     back = sz - 34
+
+    def face_z(y):                     # the face's plane, leaning back
+        return sz + D - (y - sy) * math.tan(tilt)
+
+    # The keyboard deck rises gently towards the face from a 3.5 cm lip.
+    front, lip, deck_slope = sz + 40, DESK_Y + 3.5, math.radians(7)
+    # Where the deck meets the face: deck_y(z) = lip + (front - z) tan(slope).
+    yk = sy
+    for _ in range(40):
+        yk = lip + (front - face_z(yk)) * math.tan(deck_slope)
+    corners = [
+        ((back + 9, DESK_Y), 0),
+        ((back, DESK_Y + 13), 2),
+        ((back, lid), 5),
+        ((face_z(lid), lid), 9),
+        ((face_z(yk), yk), 8),
+        ((front, lip), 2.5),
+        ((front, DESK_Y), 0),
+    ]
+    outline = rounded_outline(corners)
     soft = dict(roughness=0.5)
-    sc.box((0, (DESK_Y + lid - r) / 2, (back + sz - 1) / 2), (W, lid - r - DESK_Y, sz - 1 - back), shell, **soft)
-    sc.box((0, lid - r / 2, (back + face_z) / 2), (W, r, face_z - back - 2 * r), shell, **soft)
-    for z in (back + r, face_z - r):   # top edges, back and front
-        sc.cylinder((0, lid - r, z), 2 * r, W - 2 * r, shell, rotation=(0, 0, 90), **soft)
-    for sign in (-1, 1):
-        x = sign * (W / 2 - r)
-        for z in (back + r, face_z - r):
-            sc.sphere((x, lid - r, z), (2 * r, 2 * r, 2 * r), shell, **soft)
-        # The front corners, and the sides between the body and the face.
-        sc.cylinder((x, (DESK_Y + lid - r) / 2, face_z - r), 2 * r, lid - r - DESK_Y, shell, **soft)
-        sc.box((sign * W / 2 - sign * 0.005, (DESK_Y + lid - r) / 2, (sz - 1 + face_z - r) / 2),
-               (0.01, lid - r - DESK_Y, face_z - r - sz + 1), shell, **soft)
-    for group in (-1, 1):              # vents on the lid
+
+    # The face's straight run, between the top's curve and the sweep into the deck.
+    face_top = face_bottom = None
+    for (z0, y0), (z1, y1) in zip(outline, outline[1:]):
+        if abs((z1 - z0) - (face_z(y1) - face_z(y0))) < 1e-6 and abs(z0 - face_z(y0)) < 1e-6 and y1 < y0 - 5:
+            face_top, face_bottom = y0, y1
+
+    # The shell: a thin full-width strip along each piece of the outline (but
+    # not the face's straight run, which has the recess in it).
+    segments = list(zip(outline, outline[1:]))
+    for (z0, y0), (z1, y1) in segments:
+        if face_top is not None and abs(y0 - face_top) < 1e-6 and abs(y1 - face_bottom) < 1e-6:
+            continue
+        length = math.hypot(z1 - z0, y1 - y0)
+        if length < 1e-3:
+            continue
+        nz, ny = (y1 - y0) / length, -(z1 - z0) / length     # inward
+        th = 0.8
+        sc.box((0, (y0 + y1) / 2 + ny * th / 2, (z0 + z1) / 2 + nz * th / 2), (W, length + 0.15, th), shell,
+               rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0), shadows=False, **soft)
+        # The sides: a band just inside the outline...
+        band = 3.0
+        for sign in (-1, 1):
+            sc.box((sign * (W / 2 - 0.2), (y0 + y1) / 2 + ny * band / 2, (z0 + z1) / 2 + nz * band / 2),
+                   (0.4, length + 0.15, band), shell, rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0),
+                   shadows=False, **soft)
+
+    # ...and filled in below it in horizontal strips.
+    closed = outline + [outline[0]]
+
+    def span(y):
+        zs = []
+        for (z0, y0), (z1, y1) in zip(closed, closed[1:]):
+            if (y0 - y) * (y1 - y) <= 0 and y0 != y1:
+                zs.append(z0 + (y - y0) / (y1 - y0) * (z1 - z0))
+        return (min(zs), max(zs)) if len(zs) >= 2 else None
+
+    step = 2.0
+    y = DESK_Y
+    while y < lid - 0.5:
+        y1 = min(y + step, lid - 0.5)
+        a, b = span(y + 0.01), span(y1 - 0.01)
+        if a and b:
+            z0, z1 = max(a[0], b[0]), min(a[1], b[1])
+            if z1 > z0:
+                for sign in (-1, 1):
+                    sc.box((sign * (W / 2 - 0.2), (y + y1) / 2, (z0 + z1) / 2), (0.4, y1 - y, z1 - z0), shell,
+                           shadows=False, **soft)
+        y = y1
+
+    # Vents on the lid.
+    for group in (-1, 1):
         for row in range(4):
             for col in range(5):
-                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, lid + 0.02, sz - 8 - row * 4), (W / 26, 0.06, 1.2),
+                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, lid + 0.02, sz - 9 - row * 4), (W / 26, 0.06, 1.2),
                        "#6a6862", shadows=False)
-    # The face in front of the screen: flat panels round a bevelled recess.
-    t = 1.2
-    fw = W - 2 * r
-    sc.box((0, (upper + B + lid - r) / 2, face_z - t / 2), (fw, lid - r - upper - B, t), shell, **soft)
-    face_bottom = lower - B
-    sc.box((0, (face_bottom + DESK_Y + 9) / 2, face_z - t / 2), (fw, face_bottom - DESK_Y - 9, t), shell, **soft)
-    side_w = fw / 2 - mon.w / 2 - B
+
+    # The face: panels in its leaning plane round the recess.
+    t = 1.0
+    rot = (-TERM_TILT, 0, 0)
+    cos_t = math.cos(tilt)
+
+    def face_panel(x, y0, y1, width, color=shell):
+        yc = (y0 + y1) / 2
+        sc.box((x, yc - t / 2 * math.sin(tilt), face_z(yc) - t / 2 * cos_t), (width, (y1 - y0) / cos_t, t), color,
+               rotation=rot, shadows=False, **soft)
+
+    open_top, open_bottom = upper + B, lower - B
+    if face_top is None:
+        face_top, face_bottom = lid - 6, yk + 4
+    face_panel(0, open_top, face_top + 0.1, W)
+    face_panel(0, face_bottom - 0.1, open_bottom, W)
+    side_w = W / 2 - mon.w / 2 - B
     for sign in (-1, 1):
-        sc.box((sign * (fw / 2 - side_w / 2), sy, face_z - t / 2), (side_w, mon.h + 2 * B, t), shell, **soft)
-    # The recess: four gently sloping panels from the screen's edge out to the face.
-    L = math.hypot(B, D)
-    a = math.degrees(math.atan2(D, B))
-    sc.box((0, upper + B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(a, 0, 0), roughness=0.6)
-    sc.box((0, lower - B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(-a, 0, 0), roughness=0.6)
-    sc.box((left - B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, a, 0), roughness=0.6)
-    sc.box((right + B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, -a, 0), roughness=0.6)
+        face_panel(sign * (W / 2 - side_w / 2), open_bottom, open_top, side_w)
+
+    # The recess: sloping panels from the screen's edge out to the face (the
+    # sides in strips, as the face leans back and the recess gets shallower
+    # towards the top).
+    def strip(y0, z0, y1, z1, width, x=0):
+        length = math.hypot(y1 - y0, z1 - z0)
+        sc.box((x, (y0 + y1) / 2, (z0 + z1) / 2), (width, length, 0.5), recess,
+               rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0), roughness=0.6, shadows=False)
+
+    strip(upper, sz, open_top, face_z(open_top), mon.w + 2 * B)
+    strip(open_bottom, face_z(open_bottom), lower, sz, mon.w + 2 * B)
+    pieces = 16
+    for i in range(pieces):
+        ya = lower + mon.h * i / pieces
+        yb = lower + mon.h * (i + 1) / pieces
+        depth = face_z((ya + yb) / 2) - sz
+        L = math.hypot(B, depth)
+        a = math.degrees(math.atan2(depth, B))
+        for sign, edge in ((-1, left), (1, right)):
+            sc.box((edge + sign * B / 2, (ya + yb) / 2, sz + depth / 2), (L, yb - ya + 0.4, 0.5), recess,
+                   rotation=(0, -sign * a, 0), roughness=0.6, shadows=False)
     sc.box((0, sy, sz - 0.6), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", roughness=0.3)
-    # The keyboard deck, sloping down towards you, with the keys on top and
-    # a rounded front lip.
-    deck_len, slope, deck_h = 30, 6, 9
-    deck_y = DESK_Y + deck_h / 2
-    deck_z = face_z + deck_len / 2 - 1
-    kx = math.radians(slope)
-    sc.box((0, deck_y, deck_z), (W, deck_h, deck_len), shell, rotation=(slope, 0, 0), **soft)
-    sc.cylinder((0, deck_y - deck_len / 2 * math.sin(kx), deck_z + deck_len / 2 * math.cos(kx)), deck_h, W, shell,
-                rotation=(0, 0, 90), **soft)
-    top_y = deck_y + deck_h / 2 * math.cos(kx) + 0.05
-    sc.plane((0, top_y - 2 * math.tan(kx), face_z + deck_len / 2 + 1 + deck_h / 2 * math.sin(kx)), W - 8, deck_len - 9,
-             rotation=(-90 + slope, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
+    # The inside, dark. It also casts the terminal's shadow (the thin shell
+    # pieces don't, as shadows on them come out speckled).
+    sc.box((0, (DESK_Y + lid) / 2, (back + sz) / 2 - 1), (W - 1, lid - DESK_Y - 2, sz - back - 4), "#2a2a28")
+
+    # The keys, on the deck.
+    k_back = face_z(yk) + 6
+    k_front = front - 3
+    zc = (k_back + k_front) / 2
+    deck_y = lip + (front - zc) * math.tan(deck_slope)
+    sc.plane((0, deck_y + 0.9, zc), W - 8, (k_front - k_back) / math.cos(deck_slope),
+             rotation=(-90 + math.degrees(deck_slope), 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
+
     # A small badge under the screen, and the power lamp.
-    sc.box((-mon.w / 4, lower - B - 3, face_z + 0.05), (8, 1.6, 0.2), "#4a4a52")
-    sc.sphere((fw / 2 - 3, lower - B - 3, face_z + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
+    by = open_bottom - 3
+    sc.box((-mon.w / 4, by, face_z(by) + 0.05), (8, 1.6, 0.2), "#4a4a52", rotation=rot)
+    sc.sphere((W / 2 - 5, by, face_z(by) + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
 
     textures = list(sticky_notes) + [None, None]
-    size = 5
-    note_y = upper + B + 3
-    sc.spot("bezel-left", (left + size / 2, note_y, face_z + 0.05), size, (0, 0, 4), textures[0])
+    size = 6
+    note_x = mon.w / 2 + B + side_w / 2
+    ny = upper - 4
+    sc.spot("bezel-left", (-note_x, ny, face_z(ny) + 0.08), size, (-TERM_TILT, 0, 4), textures[0])
     sc.spot("right-side", (W / 2 + 0.05, sy - 2, sz - 8), 6, (0, 90, -5), textures[1])
-    sc.spot("bezel-right", (right - size / 2, note_y, face_z + 0.05), size, (0, 0, -3))
+    sc.spot("bezel-right", (note_x, ny, face_z(ny) + 0.08), size, (-TERM_TILT, 0, -3))
     sc.spot("left-side", (-W / 2 - 0.05, sy - 4, sz - 12), 6, (0, -90, 4))
 
 
