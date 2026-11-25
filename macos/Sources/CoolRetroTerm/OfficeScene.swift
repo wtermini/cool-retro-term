@@ -34,12 +34,16 @@ enum OfficeScene: String, CaseIterable {
     case off = ""
     case eighties = "80s"
     case nineties = "90s"
+    case twoThousands = "2000s"
+    case aero = "aero"
 
     var title: String {
         switch self {
         case .off: return "Off"
         case .eighties: return "80s Den"
         case .nineties: return "90s Cubicle"
+        case .twoThousands: return "2000s Office"
+        case .aero: return "Frutiger Aero"
         }
     }
 }
@@ -160,9 +164,11 @@ struct OfficeRoom: Decodable {
         var group: String?
         /// Drawn from the desk: "note:monitor", "note:side", "note:wall" or "calendar".
         var live: String?
+        /// See-through (glass, water, bubbles), 0 to 1.
+        var opacity: Float?
 
         enum CodingKeys: String, CodingKey {
-            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive, group, live
+            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive, group, live, opacity
             case repeats = "repeat"
         }
     }
@@ -507,6 +513,11 @@ final class OfficeSceneView: SCNView {
                 if let emissive = object.emissive { material.emission.contents = NSColor(hex: emissive) }
             }
             material.roughness.contents = NSNumber(value: object.roughness)
+            if let opacity = object.opacity, opacity < 1 {
+                material.transparency = CGFloat(opacity)
+                material.transparencyMode = .dualLayer
+                material.isDoubleSided = true
+            }
             material.metalness.contents = NSNumber(value: object.metalness)
             geometry.materials = [material]
 

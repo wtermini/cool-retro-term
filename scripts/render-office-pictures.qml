@@ -32,7 +32,11 @@ Window {
     readonly property var scenes: [["80s", "standard", true], ["80s", "wide", true],
                                    ["90s", "standard", true], ["90s", "wide", true],
                                    ["80s", "standard", false], ["80s", "wide", false],
-                                   ["90s", "standard", false], ["90s", "wide", false]]
+                                   ["90s", "standard", false], ["90s", "wide", false],
+                                   ["2000s", "standard", true], ["2000s", "wide", true],
+                                   ["2000s", "standard", false], ["2000s", "wide", false],
+                                   ["aero", "standard", true], ["aero", "wide", true],
+                                   ["aero", "standard", false], ["aero", "wide", false]]
     property int index: 0
     readonly property string outDir: Qt.application.arguments[Qt.application.arguments.length - 1]
 

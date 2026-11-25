@@ -116,8 +116,12 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   profiles from the Qt app. The choice is saved to the shared settings and
   applies to every window.
 - **View ▸ Office Mode** puts the terminal on the screen of a CRT monitor
-  in a 3D room: an **80s Den** (wood panelling, shag carpet, a banker's lamp)
-  or a **90s Cubicle** (fabric partitions, fluorescent lights, sticky notes).
+  in a 3D room: an **80s Den** (wood panelling, shag carpet, a banker's lamp),
+  a **90s Cubicle** (fabric partitions, fluorescent lights, sticky notes), a
+  **2000s Office** (an LCD with a webcam, a whiteboard, a SYNERGY poster, a
+  CD spindle) or **Frutiger Aero** (the 2000s as people remember them: a glass
+  desk, a glossy white monitor with a glowing halo, an aquarium, bamboo,
+  floating bubbles and a window onto a blue sky and a green hill).
   The terminal keeps working as usual on the monitor's screen, which gives
   off light in the profile's colour.
   - Pick the monitor in View ▸ Office Mode: a **Widescreen Monitor

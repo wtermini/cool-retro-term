@@ -53,7 +53,8 @@ jobs:
           status=0
           # "profile|office scene|monitor|3D (1) or picture (0)".
           for entry in "Monochrome Green|||1" "Default Amber|||1" "IBM VGA 8x16|||1" \
-                       "Default Amber|80s|wide|1" "Monochrome Green|90s|standard|1" "Default Amber|90s|wide|0"; do
+                       "Default Amber|80s|wide|1" "Monochrome Green|90s|standard|1" "Default Amber|90s|wide|0" \
+                       "Default Amber|2000s|wide|1" "Monochrome Green|aero|wide|1"; do
             IFS='|' read -r profile scene monitor office3d <<< "$entry"
             name=$(echo "$profile" | tr ' ' '-')${scene:+-office-$scene-$monitor}
             [ "$office3d" = 0 ] && name="$name-2d"

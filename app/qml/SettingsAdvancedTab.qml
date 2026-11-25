@@ -75,8 +75,8 @@ ColumnLayout {
             RowLayout {
                 Label { text: qsTr("Office Mode") }
                 ComboBox {
-                    readonly property var scenes: ["", "80s", "90s"]
-                    model: [qsTr("Off"), qsTr("80s Den"), qsTr("90s Cubicle")]
+                    readonly property var scenes: ["", "80s", "90s", "2000s", "aero"]
+                    model: [qsTr("Off"), qsTr("80s Den"), qsTr("90s Cubicle"), qsTr("2000s Office"), qsTr("Frutiger Aero")]
                     currentIndex: Math.max(scenes.indexOf(appSettings.officeScene), 0)
                     onActivated: (index) => appSettings.officeScene = scenes[index]
                 }

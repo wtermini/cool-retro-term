@@ -279,6 +279,8 @@ View3D {
             receivesShadows: true
             materials: PrincipledMaterial {
                 baseColor: object.modelData.color
+                // See-through objects (glass, water, bubbles).
+                opacity: object.modelData.opacity !== undefined ? object.modelData.opacity : 1
                 roughness: object.modelData.roughness
                 metalness: object.modelData.metalness
                 baseColorMap: object.liveFace ? liveTexture : object.modelData.texture ? texture : null

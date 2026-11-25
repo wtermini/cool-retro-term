@@ -25,20 +25,34 @@
         <file>images/crt256.png</file>
         <file>OfficeScene.qml</file>
         <file>OfficePicture.qml</file>
+        <file>office/aero-aurora.jpg</file>
+        <file>office/aero-sky.jpg</file>
+        <file>office/aero-tiles.png</file>
+        <file>office/aero-wall.jpg</file>
         <file>office/blinds.jpg</file>
         <file>office/calendar-picture.jpg</file>
         <file>office/calendar.jpg</file>
+        <file>office/carpet-tiles.jpg</file>
         <file>office/ceiling-80s.jpg</file>
         <file>office/ceiling-light.jpg</file>
         <file>office/ceiling-tile.jpg</file>
+        <file>office/charcoal.jpg</file>
         <file>office/fabric.jpg</file>
         <file>office/floppy-0.png</file>
         <file>office/floppy-1.png</file>
         <file>office/floppy-2.png</file>
         <file>office/keyboard-beige.png</file>
+        <file>office/keyboard-black.png</file>
         <file>office/keyboard-grey.png</file>
+        <file>office/keyboard-white.png</file>
         <file>office/laminate.jpg</file>
         <file>office/memo.jpg</file>
+        <file>office/office-2000s-standard-nonotes.jpg</file>
+        <file>office/office-2000s-standard.jpg</file>
+        <file>office/office-2000s-standard.json</file>
+        <file>office/office-2000s-wide-nonotes.jpg</file>
+        <file>office/office-2000s-wide.jpg</file>
+        <file>office/office-2000s-wide.json</file>
         <file>office/office-80s-standard-nonotes.jpg</file>
         <file>office/office-80s-standard.jpg</file>
         <file>office/office-80s-standard.json</file>
@@ -51,14 +65,23 @@
         <file>office/office-90s-wide-nonotes.jpg</file>
         <file>office/office-90s-wide.jpg</file>
         <file>office/office-90s-wide.json</file>
+        <file>office/office-aero-standard-nonotes.jpg</file>
+        <file>office/office-aero-standard.jpg</file>
+        <file>office/office-aero-standard.json</file>
+        <file>office/office-aero-wide-nonotes.jpg</file>
+        <file>office/office-aero-wide.jpg</file>
+        <file>office/office-aero-wide.json</file>
         <file>office/office-carpet.jpg</file>
         <file>office/office-wall.jpg</file>
+        <file>office/paint-2000s.jpg</file>
+        <file>office/poster-synergy.jpg</file>
         <file>office/poster.jpg</file>
         <file>office/shag-carpet.jpg</file>
         <file>office/sticky-green.png</file>
         <file>office/sticky-pink.png</file>
         <file>office/sticky-yellow.png</file>
         <file>office/walnut.jpg</file>
+        <file>office/whiteboard.jpg</file>
         <file>office/wood-panel.jpg</file>
         <file>StickyNoteFace.qml</file>
         <file>CalendarFace.qml</file>
