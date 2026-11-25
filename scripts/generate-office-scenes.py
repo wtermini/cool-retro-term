@@ -91,6 +91,16 @@ def quat(x=0.0, y=0.0, z=0.0):
     return [round(v, 6) for v in q]
 
 
+def qmul(a, b):
+    """The rotation b followed by a, for quaternions [x, y, z, w]."""
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return [round(v, 6) for v in (aw * bx + ax * bw + ay * bz - az * by,
+                                  aw * by - ax * bz + ay * bw + az * bx,
+                                  aw * bz + ax * by - ay * bx + az * bw,
+                                  aw * bw - ax * bx - ay * by - az * bz)]
+
+
 class Scene:
     def __init__(self, name):
         self.name = name
@@ -102,7 +112,7 @@ class Scene:
         """A place for a sticky note. `texture` is the scribbled note drawn
         there in the 2D pictures (only the first three places have one)."""
         spot = {"position": [round(float(v), 3) for v in position], "size": round(float(size), 2),
-                "rotation": quat(*rotation)}
+                "rotation": list(rotation) if len(rotation) == 4 else quat(*rotation)}
         if texture:
             spot["texture"] = texture
         self.spots[name] = spot
@@ -113,7 +123,7 @@ class Scene:
         obj = {"shape": shape,
                "position": [round(float(v), 3) for v in position],
                "size": [round(float(v), 3) for v in size],
-               "rotation": quat(*rotation),
+               "rotation": list(rotation) if len(rotation) == 4 else quat(*rotation),
                "color": color,
                "roughness": roughness,
                "metalness": metalness,
@@ -498,6 +508,7 @@ class Monitor:
         self.half_width = half_width   # of the casing
         self.top = top                 # top of the casing
         self.distance = distance       # starting camera distance
+        self.tilt = 0.0                # degrees the screen leans back
 
 
 # A 14-inch 4:3 monitor on a swivel stand.
@@ -513,22 +524,41 @@ LCD_WIDE = Monitor("wide", 47.4, 29.6, DESK_Y + 9 + 3.5 + 29.6 / 2, -38, 25.7, D
 LCD_WIDE.lcd = (2.0, 2.2, 3.5)
 
 
-# Video terminals for the 70s room: one smooth, curvy off-white piece. The
-# face leans back and sweeps down into a low keyboard deck, the top rolls
-# over in a big curve, and the screen sits in a bevelled recess
+# Video terminals for the 70s room: one smooth off-white piece. The face
+# and the screen lean back together, the screen in a flared surround; the
+# face meets a low keyboard deck in a curve and rolls over into a flat top
 # (Widescreen is a wide, 132-column-style model).
-TERM_BEVEL, TERM_DEPTH, TERM_TOP = 5.0, 4.5, 9.0   # recess width, its depth mid-screen; face above it
-TERM_TILT = 10.0                                    # how far the face leans back, degrees
-TERM_SIDE = 13.0                                    # face either side of the recess
+TERM_TILT = 16.0          # how far the face and screen lean back, degrees
+TERM_BEVEL = 4.5          # how far the surround flares out from the screen...
+TERM_DEPTH = 4.5          # ...and how deep it is
+TERM_SIDE = 12.0          # from the screen's edge to the body's side
+TERM_ABOVE, TERM_BELOW = 7.0, 8.0   # face above and below the surround
+TERM_LIP, TERM_DECK, TERM_DECK_SLOPE = 4.0, 30.0, 4.0   # keyboard deck: front height, depth, slope
 
 
-def terminal_monitor(name, w, h, z, distance):
-    sy = DESK_Y + 16 + h / 2          # screen bottom 16 cm above the desk, over the deck
-    return Monitor(name, w, h, sy, z, w / 2 + TERM_SIDE, sy + h / 2 + TERM_BEVEL + TERM_TOP, distance)
+def terminal_frame(tilt):
+    """Maps (v, d) in the leaning face's frame (v up the face, d out of it,
+    from the screen's middle) to (dy, dz)."""
+    c, s = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
+    return lambda v, d: (v * c + d * s, -v * s + d * c)
 
 
-TERM_STANDARD = terminal_monitor("standard", 29.6, 22.2, -48, 98)
-TERM_WIDE = terminal_monitor("wide", 47.0, 29.4, -48, 112)
+def terminal_monitor(name, w, h, distance):
+    frame = terminal_frame(TERM_TILT)
+    # The face meets the deck below the surround; that sets the screen's height...
+    dy, dz = frame(-(h / 2 + TERM_BEVEL + TERM_BELOW), TERM_DEPTH)
+    deck_y = DESK_Y + TERM_LIP + TERM_DECK * math.tan(math.radians(TERM_DECK_SLOPE))
+    sy = deck_y - dy
+    # ...and the deck's front, 7 cm from the desk's edge, sets how far back it is.
+    sz = -7 - TERM_DECK - dz
+    top = sy + frame(h / 2 + TERM_BEVEL + TERM_ABOVE, TERM_DEPTH)[0]
+    mon = Monitor(name, w, h, sy, sz, w / 2 + TERM_SIDE, top, distance)
+    mon.tilt = TERM_TILT
+    return mon
+
+
+TERM_STANDARD = terminal_monitor("standard", 29.6, 22.2, 98)
+TERM_WIDE = terminal_monitor("wide", 47.0, 29.4, 112)
 
 
 def keyboard_terminal():
@@ -592,162 +622,146 @@ def rounded_outline(corners):
 
 
 def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
-    """The terminal, screen facing +Z. Its side outline is drawn as a
-    rounded polygon: a cut-away back, a flat top that rolls over into a face
-    leaning back, which sweeps down into a low keyboard deck with a rounded
-    front lip. The shell follows that outline in thin strips, the sides are
-    filled in under it, and the face has a bevelled recess for the screen."""
+    """The terminal, screen facing +Z and leaning back with the face. Its
+    side outline is a rounded polygon (a cut-away back, a flat top rolling
+    over into the leaning face, which curves into a low keyboard deck with a
+    rounded lip); the shell follows it in thin strips and the sides are
+    filled in under it. The screen sits in a flared surround in the face."""
     sy, sz = mon.y, mon.z
     W = mon.w + 2 * TERM_SIDE
     B, D = TERM_BEVEL, TERM_DEPTH
-    tilt = math.radians(TERM_TILT)
+    frame = terminal_frame(TERM_TILT)
+    lean = quat(-TERM_TILT)
+
+    def at(x, v, d):                   # a point in the face's frame, in the room
+        dy, dz = frame(v, d)
+        return (x, sy + dy, sz + dz)
+
+    def in_face(rotation):             # a rotation in the face's frame, in the room
+        return qmul(lean, quat(*rotation))
+
+    def depth_of(z, y):                # how far a point is out of the screen's plane
+        c, s = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
+        return (y - sy) * s + (z - sz) * c
+
+    def height_of(z, y):               # how far up the face a point is
+        c, s = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
+        return (y - sy) * c - (z - sz) * s
+
     lid = mon.top
-    left, right = -mon.w / 2, mon.w / 2
-    upper, lower = sy + mon.h / 2, sy - mon.h / 2
-    back = sz - 34
-
-    def face_z(y):                     # the face's plane, leaning back
-        return sz + D - (y - sy) * math.tan(tilt)
-
-    # The keyboard deck rises gently towards the face from a 3.5 cm lip.
-    front, lip, deck_slope = sz + 40, DESK_Y + 3.5, math.radians(7)
-    # Where the deck meets the face: deck_y(z) = lip + (front - z) tan(slope).
-    yk = sy
-    for _ in range(40):
-        yk = lip + (front - face_z(yk)) * math.tan(deck_slope)
+    back = sz - 36
+    v_open = mon.h / 2 + B                       # the surround's outer edge, up and down
+    _, face_top_y, face_top_z = at(0, v_open + TERM_ABOVE, D)
+    _, face_bottom_y, face_bottom_z = at(0, -(v_open + TERM_BELOW), D)
+    front = face_bottom_z + TERM_DECK
+    deck_slope = math.radians(TERM_DECK_SLOPE)
     corners = [
-        ((back + 9, DESK_Y), 0),
-        ((back, DESK_Y + 13), 2),
-        ((back, lid), 5),
-        ((face_z(lid), lid), 9),
-        ((face_z(yk), yk), 8),
-        ((front, lip), 2.5),
+        ((back + 10, DESK_Y), 0),
+        ((back, DESK_Y + 14), 2),
+        ((back, lid), 3),
+        ((face_top_z, face_top_y), 4),
+        ((face_bottom_z, face_bottom_y), 6),
+        ((front, DESK_Y + TERM_LIP), 2),
         ((front, DESK_Y), 0),
     ]
     outline = rounded_outline(corners)
-    soft = dict(roughness=0.5)
+    soft = dict(roughness=0.5, shadows=False)
 
-    # The face's straight run, between the top's curve and the sweep into the deck.
-    face_top = face_bottom = None
+    # The shell: a thin full-width strip along each piece of the outline,
+    # except the face's straight run, which has the surround in it.
+    face_run = None
     for (z0, y0), (z1, y1) in zip(outline, outline[1:]):
-        if abs((z1 - z0) - (face_z(y1) - face_z(y0))) < 1e-6 and abs(z0 - face_z(y0)) < 1e-6 and y1 < y0 - 5:
-            face_top, face_bottom = y0, y1
-
-    # The shell: a thin full-width strip along each piece of the outline (but
-    # not the face's straight run, which has the recess in it).
-    segments = list(zip(outline, outline[1:]))
-    for (z0, y0), (z1, y1) in segments:
-        if face_top is not None and abs(y0 - face_top) < 1e-6 and abs(y1 - face_bottom) < 1e-6:
+        if abs(depth_of(z0, y0) - D) < 1e-3 and abs(depth_of(z1, y1) - D) < 1e-3 and y0 - y1 > 10:
+            face_run = (height_of(z0, y0), height_of(z1, y1))
             continue
         length = math.hypot(z1 - z0, y1 - y0)
         if length < 1e-3:
             continue
         nz, ny = (y1 - y0) / length, -(z1 - z0) / length     # inward
+        angle = math.degrees(math.atan2(z1 - z0, y1 - y0))
         th = 0.8
         sc.box((0, (y0 + y1) / 2 + ny * th / 2, (z0 + z1) / 2 + nz * th / 2), (W, length + 0.15, th), shell,
-               rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0), shadows=False, **soft)
-        # The sides: a band just inside the outline...
-        band = 3.0
+               rotation=(angle, 0, 0), **soft)
+        band = 3.0                     # the sides, just inside the outline...
         for sign in (-1, 1):
             sc.box((sign * (W / 2 - 0.2), (y0 + y1) / 2 + ny * band / 2, (z0 + z1) / 2 + nz * band / 2),
-                   (0.4, length + 0.15, band), shell, rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0),
-                   shadows=False, **soft)
-
-    # ...and filled in below it in horizontal strips.
+                   (0.4, length + 0.15, band), shell, rotation=(angle, 0, 0), **soft)
+    face_top_v, face_bottom_v = face_run
+    # ...and the rest of the sides, in horizontal strips.
     closed = outline + [outline[0]]
 
     def span(y):
-        zs = []
-        for (z0, y0), (z1, y1) in zip(closed, closed[1:]):
-            if (y0 - y) * (y1 - y) <= 0 and y0 != y1:
-                zs.append(z0 + (y - y0) / (y1 - y0) * (z1 - z0))
+        zs = [z0 + (y - y0) / (y1 - y0) * (z1 - z0)
+              for (z0, y0), (z1, y1) in zip(closed, closed[1:]) if (y0 - y) * (y1 - y) <= 0 and y0 != y1]
         return (min(zs), max(zs)) if len(zs) >= 2 else None
 
-    step = 2.0
     y = DESK_Y
     while y < lid - 0.5:
-        y1 = min(y + step, lid - 0.5)
+        y1 = min(y + 2.0, lid - 0.5)
         a, b = span(y + 0.01), span(y1 - 0.01)
-        if a and b:
+        if a and b and min(a[1], b[1]) > max(a[0], b[0]):
             z0, z1 = max(a[0], b[0]), min(a[1], b[1])
-            if z1 > z0:
-                for sign in (-1, 1):
-                    sc.box((sign * (W / 2 - 0.2), (y + y1) / 2, (z0 + z1) / 2), (0.4, y1 - y, z1 - z0), shell,
-                           shadows=False, **soft)
+            for sign in (-1, 1):
+                sc.box((sign * (W / 2 - 0.2), (y + y1) / 2, (z0 + z1) / 2), (0.4, y1 - y, z1 - z0), shell, **soft)
         y = y1
+    # The inside: dark, and it casts the terminal's shadow (shadows on the
+    # thin shell pieces come out speckled, so they cast none).
+    inside_front = sz - mon.h / 2 * math.sin(math.radians(TERM_TILT)) - 2
+    sc.box((0, (DESK_Y + 14 + lid - 2) / 2, (back + 1 + inside_front) / 2), (W - 1, lid - 2 - DESK_Y - 14, inside_front - back - 1),
+           "#2a2a28")
+    sc.box((0, DESK_Y + 7.5, (back + 11 + inside_front) / 2), (W - 1, 13, inside_front - back - 11), "#2a2a28")
 
-    # Vents on the lid.
+    # Vents on the top, in two groups of slots.
     for group in (-1, 1):
-        for row in range(4):
-            for col in range(5):
-                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, lid + 0.02, sz - 9 - row * 4), (W / 26, 0.06, 1.2),
-                       "#6a6862", shadows=False)
+        for row in range(5):
+            for col in range(4):
+                sc.box((group * (W / 4 + 1) + (col - 1.5) * W / 9, lid + 0.02, face_top_z - 9 - row * 3.2),
+                       (W / 10, 0.06, 1.0), "#6a6862", shadows=False)
 
-    # The face: panels in its leaning plane round the recess.
+    # The face, in panels round the surround.
     t = 1.0
-    rot = (-TERM_TILT, 0, 0)
-    cos_t = math.cos(tilt)
-
-    def face_panel(x, y0, y1, width, color=shell):
-        yc = (y0 + y1) / 2
-        sc.box((x, yc - t / 2 * math.sin(tilt), face_z(yc) - t / 2 * cos_t), (width, (y1 - y0) / cos_t, t), color,
-               rotation=rot, shadows=False, **soft)
-
-    open_top, open_bottom = upper + B, lower - B
-    if face_top is None:
-        face_top, face_bottom = lid - 6, yk + 4
-    face_panel(0, open_top, face_top + 0.1, W)
-    face_panel(0, face_bottom - 0.1, open_bottom, W)
     side_w = W / 2 - mon.w / 2 - B
+
+    def face_panel(x, v0, v1, width):
+        sc.box(at(x, (v0 + v1) / 2, D - t / 2), (width, v1 - v0, t), shell, rotation=lean, **soft)
+
+    face_panel(0, v_open, face_top_v + 0.1, W)
+    face_panel(0, face_bottom_v - 0.1, -v_open, W)
     for sign in (-1, 1):
-        face_panel(sign * (W / 2 - side_w / 2), open_bottom, open_top, side_w)
+        face_panel(sign * (W / 2 - side_w / 2), -v_open, v_open, side_w)
 
-    # The recess: sloping panels from the screen's edge out to the face (the
-    # sides in strips, as the face leans back and the recess gets shallower
-    # towards the top).
-    def strip(y0, z0, y1, z1, width, x=0):
-        length = math.hypot(y1 - y0, z1 - z0)
-        sc.box((x, (y0 + y1) / 2, (z0 + z1) / 2), (width, length, 0.5), recess,
-               rotation=(math.degrees(math.atan2(z1 - z0, y1 - y0)), 0, 0), roughness=0.6, shadows=False)
-
-    strip(upper, sz, open_top, face_z(open_top), mon.w + 2 * B)
-    strip(open_bottom, face_z(open_bottom), lower, sz, mon.w + 2 * B)
-    pieces = 16
-    for i in range(pieces):
-        ya = lower + mon.h * i / pieces
-        yb = lower + mon.h * (i + 1) / pieces
-        depth = face_z((ya + yb) / 2) - sz
-        L = math.hypot(B, depth)
-        a = math.degrees(math.atan2(depth, B))
-        for sign, edge in ((-1, left), (1, right)):
-            sc.box((edge + sign * B / 2, (ya + yb) / 2, sz + depth / 2), (L, yb - ya + 0.4, 0.5), recess,
-                   rotation=(0, -sign * a, 0), roughness=0.6, shadows=False)
-    sc.box((0, sy, sz - 0.6), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", roughness=0.3)
-    # The inside, dark. It also casts the terminal's shadow (the thin shell
-    # pieces don't, as shadows on them come out speckled).
-    sc.box((0, (DESK_Y + lid) / 2, (back + sz) / 2 - 1), (W - 1, lid - DESK_Y - 2, sz - back - 4), "#2a2a28")
+    # The surround, flaring out from the screen to the face, with the
+    # screen's corners rounded off.
+    L = math.hypot(B, D)
+    a = math.degrees(math.atan2(D, B))
+    walls = dict(roughness=0.55, shadows=False, emissive="#3c3a34")   # a little light in the shade
+    sc.box(at(0, mon.h / 2 + B / 2, D / 2), (mon.w + 2 * B, L, 0.4), recess, rotation=in_face((a, 0, 0)), **walls)
+    sc.box(at(0, -mon.h / 2 - B / 2, D / 2), (mon.w + 2 * B, L, 0.4), recess, rotation=in_face((-a, 0, 0)), **walls)
+    sc.box(at(-mon.w / 2 - B / 2, 0, D / 2), (L, mon.h + B, 0.4), recess, rotation=in_face((0, a, 0)), **walls)
+    sc.box(at(mon.w / 2 + B / 2, 0, D / 2), (L, mon.h + B, 0.4), recess, rotation=in_face((0, -a, 0)), **walls)
+    for sx in (-1, 1):
+        for sv in (-1, 1):
+            sc.box(at(sx * mon.w / 2, sv * mon.h / 2, 0.12), (2.2, 2.2, 0.2), recess, rotation=in_face((0, 0, 45)), **walls)
+    sc.box(at(0, 0, -0.5), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", rotation=lean, roughness=0.3)
 
     # The keys, on the deck.
-    k_back = face_z(yk) + 6
-    k_front = front - 3
+    k_back, k_front = face_bottom_z + 3.5, front - 2.5
     zc = (k_back + k_front) / 2
-    deck_y = lip + (front - zc) * math.tan(deck_slope)
-    sc.plane((0, deck_y + 0.9, zc), W - 8, (k_front - k_back) / math.cos(deck_slope),
-             rotation=(-90 + math.degrees(deck_slope), 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
+    deck_y = DESK_Y + TERM_LIP + (front - zc) * math.tan(deck_slope)
+    sc.plane((0, deck_y + 0.05, zc), W - 5, (k_front - k_back) / math.cos(deck_slope),
+             rotation=(-90 + TERM_DECK_SLOPE, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
 
     # A small badge under the screen, and the power lamp.
-    by = open_bottom - 3
-    sc.box((-mon.w / 4, by, face_z(by) + 0.05), (8, 1.6, 0.2), "#4a4a52", rotation=rot)
-    sc.sphere((W / 2 - 5, by, face_z(by) + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
+    v_badge = -v_open - 3
+    sc.box(at(0, v_badge, D + 0.1), (7, 1.8, 0.2), "#3a3e5a", rotation=lean)
+    sc.sphere(at(W / 2 - side_w / 2, v_badge, D + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
 
     textures = list(sticky_notes) + [None, None]
-    size = 6
     note_x = mon.w / 2 + B + side_w / 2
-    ny = upper - 4
-    sc.spot("bezel-left", (-note_x, ny, face_z(ny) + 0.08), size, (-TERM_TILT, 0, 4), textures[0])
-    sc.spot("right-side", (W / 2 + 0.05, sy - 2, sz - 8), 6, (0, 90, -5), textures[1])
-    sc.spot("bezel-right", (note_x, ny, face_z(ny) + 0.08), size, (-TERM_TILT, 0, -3))
-    sc.spot("left-side", (-W / 2 - 0.05, sy - 4, sz - 12), 6, (0, -90, 4))
+    sc.spot("bezel-left", at(-note_x, mon.h / 2 - 2, D + 0.08), 6, in_face((0, 0, 4)), textures[0])
+    sc.spot("right-side", (W / 2 + 0.05, sy - 4, sz - 12), 6, (0, 90, -5), textures[1])
+    sc.spot("bezel-right", at(note_x, mon.h / 2 - 2, D + 0.08), 6, in_face((0, 0, -3)))
+    sc.spot("left-side", (-W / 2 - 0.05, sy - 6, sz - 16), 6, (0, -90, 4))
 
 
 def add_lcd(sc, mon, bezel, back, stand, glossy=False, power="#40a0ff", sticky_notes=()):
@@ -1354,8 +1368,12 @@ def picture(name, mon, fill, has_notes):
         return (PICTURE_W / 2 + (x - target[0]) * focal / depth,
                 PICTURE_H / 2 - (y - target[1]) * focal / depth)
 
-    x0, y0 = project(-mon.w / 2, mon.y + mon.h / 2, mon.z)
-    x1, y1 = project(mon.w / 2, mon.y - mon.h / 2, mon.z)
+    # The screen's top and bottom edges (further back and forward if it leans back).
+    c, s = math.cos(math.radians(mon.tilt)), math.sin(math.radians(mon.tilt))
+    x0, _ = project(-mon.w / 2, mon.y, mon.z)
+    _, y0 = project(0, mon.y + mon.h / 2 * c, mon.z - mon.h / 2 * s)
+    x1, _ = project(mon.w / 2, mon.y, mon.z)
+    _, y1 = project(0, mon.y - mon.h / 2 * c, mon.z + mon.h / 2 * s)
     # The monitor and its stand, which stay in view however the window is shaped.
     mx0, my0 = project(-mon.half_width - 2, mon.top + 1, mon.z)
     mx1, my1 = project(mon.half_width + 2, DESK_Y, mon.z - 1)
@@ -1385,7 +1403,7 @@ def finish(sc, mon, background, ambient, fill):
                    "fov": 40, "near": 5, "far": 3000,
                    "minDistance": 30, "maxDistance": 280,
                    "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
-        "screen": {"position": [0, mon.y, mon.z], "size": [mon.w, mon.h], "rotation": quat()},
+        "screen": {"position": [0, mon.y, mon.z], "size": [mon.w, mon.h], "rotation": quat(-mon.tilt)},
         "picture": picture(sc.name, mon, fill, any("texture" in s for s in sc.spots.values())),
         # Light cast by the screen, in the profile's text colour.
         "screenGlow": {"position": [0, mon.y, mon.z + 15], "intensity": 0.6, "range": 120},
