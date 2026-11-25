@@ -535,12 +535,13 @@ LCD_WIDE.lcd = (2.0, 2.2, 3.5)
 # and the screen lean back together, the screen in a flared surround; the
 # face meets a low keyboard deck in a curve and rolls over into a flat top
 # (Widescreen is a wide, 132-column-style model).
-TERM_TILT = 16.0          # how far the face and screen lean back, degrees
-TERM_BEVEL = 4.5          # how far the surround flares out from the screen...
-TERM_DEPTH = 4.5          # ...and how deep it is
-TERM_SIDE = 12.0          # from the screen's edge to the body's side
-TERM_ABOVE, TERM_BELOW = 7.0, 8.0   # face above and below the surround
-TERM_LIP, TERM_DECK, TERM_DECK_SLOPE = 4.0, 30.0, 4.0   # keyboard deck: front height, depth, slope
+TERM_TILT = 8.0           # how far the face and screen lean back, degrees
+TERM_HOOD = (7.0, 5.0, 3.5)   # how far the hood round the screen reaches out: top, sides, bottom
+TERM_DEPTH = 7.0          # how deep the hood is
+TERM_FRAME = 3.5          # flat face beyond the hood, at the sides
+TERM_SIDE = TERM_HOOD[1] + TERM_FRAME   # from the screen's edge to the body's side
+TERM_ABOVE, TERM_BELOW = 3.5, 7.0   # face above and below the hood
+TERM_LIP, TERM_DECK, TERM_DECK_SLOPE = 3.0, 22.0, 3.0   # keyboard tray: front height, depth, slope
 
 
 def terminal_frame(tilt):
@@ -553,12 +554,12 @@ def terminal_frame(tilt):
 def terminal_monitor(name, w, h, distance):
     frame = terminal_frame(TERM_TILT)
     # The face meets the deck below the surround; that sets the screen's height...
-    dy, dz = frame(-(h / 2 + TERM_BEVEL + TERM_BELOW), TERM_DEPTH)
+    dy, dz = frame(-(h / 2 + TERM_HOOD[2] + TERM_BELOW), TERM_DEPTH)
     deck_y = DESK_Y + TERM_LIP + TERM_DECK * math.tan(math.radians(TERM_DECK_SLOPE))
     sy = deck_y - dy
-    # ...and the deck's front, 7 cm from the desk's edge, sets how far back it is.
-    sz = -7 - TERM_DECK - dz
-    top = sy + frame(h / 2 + TERM_BEVEL + TERM_ABOVE, TERM_DEPTH)[0]
+    # ...and the tray's front, 8 cm from the desk's edge, sets how far back it is.
+    sz = -8 - TERM_DECK - dz
+    top = sy + frame(h / 2 + TERM_HOOD[0] + TERM_ABOVE, TERM_DEPTH)[0]
     mon = Monitor(name, w, h, sy, sz, w / 2 + TERM_SIDE, top, distance)
     mon.tilt = TERM_TILT
     return mon
@@ -566,32 +567,6 @@ def terminal_monitor(name, w, h, distance):
 
 TERM_STANDARD = terminal_monitor("standard", 29.6, 22.2, 98)
 TERM_WIDE = terminal_monitor("wide", 47.0, 29.4, 112)
-
-
-def keyboard_terminal():
-    """A terminal's built-in keyboard: dark grey keys, light grey modifiers
-    and space bar, a numeric keypad on the right."""
-    w, h = 640, 240
-    img = Image.new("RGB", (w, h), (226, 222, 210))
-    d = ImageDraw.Draw(img)
-    light, dark, top_light, top_dark = (150, 152, 150), (64, 66, 70), (176, 178, 176), (86, 88, 92)
-    kw, gap = 24, 5
-    for r in range(5):
-        y = 14 + r * 34
-        x = 14 + r * 6
-        for i in range(14 - (r == 4) * 6):
-            wide = 6 if (r == 4 and i == 2) else 1
-            width = kw * wide + gap * (wide - 1)
-            is_dark = r == 0 or i in (0, 13) or (r == 4 and i == 2) or (i > 10 and r % 2)
-            d.rounded_rectangle([x, y, x + width, y + 28], radius=3, fill=light if is_dark else dark)
-            d.rounded_rectangle([x + 3, y + 2, x + width - 3, y + 20], radius=3, fill=top_light if is_dark else top_dark)
-            x += width + gap
-        for i in range(4):   # keypad
-            px = w - 14 - (4 - i) * (kw + gap)
-            is_dark = r == 0 or i == 3
-            d.rounded_rectangle([px, y, px + kw, y + 28], radius=3, fill=dark if is_dark else light)
-            d.rounded_rectangle([px + 3, y + 2, px + kw - 3, y + 20], radius=3, fill=top_dark if is_dark else top_light)
-    return img
 
 
 class Mesh:
@@ -675,13 +650,14 @@ def triangulate(polygon):
     return triangles
 
 
-def rounded_rect_point(half_w, half_h, radius, angle):
-    """Where a ray from the middle of a rounded rectangle, at `angle`, meets its edge."""
+def rounded_rect_point(half_w, half_h, radius, angle, centre_y=0.0):
+    """Where a ray from (0, 0), at `angle`, meets the edge of a rounded
+    rectangle centred on (0, centre_y) (which must contain the origin)."""
     dx, dy = math.cos(angle), math.sin(angle)
-    lo, hi = 0.0, 2 * (half_w + half_h)
+    lo, hi = 0.0, 2 * (half_w + half_h + abs(centre_y))
     for _ in range(50):
         r = (lo + hi) / 2
-        qx, qy = abs(dx * r) - (half_w - radius), abs(dy * r) - (half_h - radius)
+        qx, qy = abs(dx * r) - (half_w - radius), abs(dy * r - centre_y) - (half_h - radius)
         outside = math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - radius
         lo, hi = (r, hi) if outside < 0 else (lo, r)
     return dx * lo, dy * lo
@@ -721,16 +697,17 @@ def rounded_outline(corners):
     return points
 
 
-def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
-    """The terminal, screen facing +Z and leaning back with the face, as a
-    smooth mesh. Its side outline is a rounded polygon (a cut-away back, a
-    flat top rolling over into the leaning face, which curves into a low
-    keyboard deck with a rounded lip), drawn out across the terminal's width
-    with rounded edges; the face has an opening with rounded corners, and a
-    surround flares in from it to the screen."""
+def add_terminal(sc, mon, shell, recess, sticky_notes=()):
+    """The terminal, screen facing +Z and leaning back a little with the
+    face, as a smooth mesh. Its side outline is a rounded polygon (a cut-away
+    back, a top sloping down to the back that rolls over into the face,
+    which meets a low keyboard tray), drawn out across the terminal's width
+    with rounded edges. The screen sits at the back of a deep hood, deepest
+    at the top, and the keys are real keys on the tray."""
     sy, sz = mon.y, mon.z
     W = mon.w + 2 * TERM_SIDE
-    B, D = TERM_BEVEL, TERM_DEPTH
+    hood_top, hood_side, hood_bottom = TERM_HOOD
+    D = TERM_DEPTH
     frame = terminal_frame(TERM_TILT)
     lean = quat(-TERM_TILT)
     cos_t, sin_t = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
@@ -750,19 +727,19 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
         return (y - sy) * cos_t - (z - sz) * sin_t
 
     lid = mon.top
-    back = sz - 36
-    v_open = mon.h / 2 + B                       # the opening's edge, up and down
-    _, face_top_y, face_top_z = at(0, v_open + TERM_ABOVE, D)
-    _, face_bottom_y, face_bottom_z = at(0, -(v_open + TERM_BELOW), D)
+    back = sz - 38
+    open_top, open_bottom = mon.h / 2 + hood_top, -(mon.h / 2 + hood_bottom)   # the hood's mouth
+    _, face_top_y, face_top_z = at(0, open_top + TERM_ABOVE, D)
+    _, face_bottom_y, face_bottom_z = at(0, open_bottom - TERM_BELOW, D)
     front = face_bottom_z + TERM_DECK
     deck_slope = math.radians(TERM_DECK_SLOPE)
     outline = rounded_outline([
-        ((back + 10, DESK_Y), 1.5),
-        ((back, DESK_Y + 14), 3),
-        ((back, lid), 4),
-        ((face_top_z, face_top_y), 5),
-        ((face_bottom_z, face_bottom_y), 7),
-        ((front, DESK_Y + TERM_LIP), 2.2),
+        ((back + 9, DESK_Y), 1.5),
+        ((back, DESK_Y + 12), 3),
+        ((back, lid - 5), 4),
+        ((face_top_z, face_top_y), 4),
+        ((face_bottom_z, face_bottom_y), 3.5),
+        ((front, DESK_Y + TERM_LIP), 1.5),
         ((front, DESK_Y), 1.5),
     ])
     # Drop points that repeat (where an arc ends where the next begins).
@@ -824,8 +801,9 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
     # opening (a rounded rectangle), joined along rays from the screen's middle.
     (za, ya), (zb, yb) = points[face_run], points[(face_run + 1) % n]
     va, vb = height_of(za, ya), height_of(zb, yb)
-    open_w, open_h, open_r = mon.w / 2 + B, mon.h / 2 + B, 4.0
-    scr_w, scr_h, scr_r = mon.w / 2 - 0.2, mon.h / 2 - 0.2, 2.5
+    open_w, open_h, open_r = mon.w / 2 + hood_side, (open_top - open_bottom) / 2, 2.0
+    open_c = (open_top + open_bottom) / 2
+    scr_w, scr_h, scr_r = mon.w / 2 - 0.2, mon.h / 2 - 0.2, 3.0
 
     def to_rect(angle):
         dx, dv = math.cos(angle), math.sin(angle)
@@ -840,7 +818,7 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
     angles += [math.atan2(v, x) % (2 * math.pi) for x in (-core, core) for v in (va, vb)]
     angles = sorted(set(round(a, 9) for a in angles))
     outer = [shell_mesh.vertex(at(*to_rect(a), D), face_normal) for a in angles]
-    inner = [shell_mesh.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a), D), face_normal) for a in angles]
+    inner = [shell_mesh.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a, open_c), D), face_normal) for a in angles]
     for k in range(len(angles)):
         m = (k + 1) % len(angles)
         shell_mesh.quad(outer[k], outer[m], inner[m], inner[k])
@@ -852,9 +830,9 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
            (W - 4, lid - 3 - DESK_Y - 15, inside_front - back - 2), "#2a2a28")
     sc.box((0, DESK_Y + 8, (back + 13 + inside_front) / 2), (W - 4, 12, inside_front - back - 13), "#2a2a28")
 
-    # The surround, flaring from the opening in to the screen.
+    # The hood, from its mouth in to the screen.
     surround = Mesh()
-    ring_out = [surround.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a), D), face_normal) for a in angles]
+    ring_out = [surround.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a, open_c), D), face_normal) for a in angles]
     ring_in = [surround.vertex(at(*rounded_rect_point(scr_w, scr_h, scr_r, a), 0.05), face_normal) for a in angles]
     for k in range(len(angles)):
         m = (k + 1) % len(angles)
@@ -866,35 +844,56 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
     for k in range(len(angles)):
         m = (k + 1) % len(angles)
         surround.quad(ring_out[k], ring_out[m], ring_in[m], ring_in[k])
-    sc.add("mesh", (0, 0, 0), (1, 1, 1), recess, mesh=surround, roughness=0.55, emissive="#3c3a34", shadows=False)
+    sc.add("mesh", (0, 0, 0), (1, 1, 1), recess, mesh=surround, roughness=0.6, emissive="#1c1b18", shadows=False)
     sc.box(at(0, 0, -0.5), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", rotation=lean, roughness=0.3)
 
-    # Vents on the top, in two groups of slots.
+    # Vents on the top (which slopes down to the back), in two groups of slots.
     for group in (-1, 1):
         for row in range(5):
             for col in range(4):
-                sc.box((group * (W / 4 + 1) + (col - 1.5) * W / 9, lid + 0.02, face_top_z - 10 - row * 3.2),
-                       (W / 10, 0.06, 1.0), "#6a6862", shadows=False)
+                z = face_top_z - 10 - row * 3.2
+                y = lid - 5 * (face_top_z - z) / (face_top_z - back) + 0.03
+                sc.box((group * (W / 4 + 1) + (col - 1.5) * W / 9, y, z), (W / 10, 0.06, 1.0), "#6a6862",
+                       rotation=(-math.degrees(math.atan2(5, face_top_z - back)), 0, 0), shadows=False)
 
-    # The keys, on the deck.
-    k_back, k_front = face_bottom_z + 4, front - 3
-    zc = (k_back + k_front) / 2
-    deck_y = DESK_Y + TERM_LIP + (front - zc) * math.tan(deck_slope)
-    sc.plane((0, deck_y + 0.05, zc), W - 6, (k_front - k_back) / math.cos(deck_slope),
-             rotation=(-90 + TERM_DECK_SLOPE, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
+    # The keys: a full-size keyboard and a keypad on the tray, dark keys
+    # with grey ones round the edges, sloping with the tray.
+    pitch, key_h = min(2.3, (W - 5) / 20.2), 1.1     # nearly the tray's width
+    dark, grey = "#3a3c40", "#8e8f8a"
+    rows = [  # (width in keys, grey?) along each row, back to front
+        [(1, True)] * 15,
+        [(1, False)] * 13 + [(2, True)],
+        [(1.5, True)] + [(1, False)] * 12 + [(1.5, True)],
+        [(1.75, True)] + [(1, False)] * 11 + [(2.25, True)],
+        [(2.25, True)] + [(1, False)] * 10 + [(2.75, True)],
+        [(1.5, True), (1.5, True), (8, False), (1.5, True), (1.25, True), (1.25, True)],
+    ]
+    main_w, pad_w, gap = 15 * pitch, 4 * pitch, 1.2 * pitch
+    x0 = -(main_w + gap + pad_w) / 2
+    s0 = face_bottom_z + 3.5 + pitch / 2      # the back row's middle, along z
+    for r, row in enumerate(rows):
+        z = s0 + r * pitch
+        x = x0
+        keys = [(x0 + sum(u for u, _ in row[:i]) * pitch, u, g) for i, (u, g) in enumerate(row)]
+        keys += [(x0 + main_w + gap + c * pitch, 1, r == 0 or c == 3) for c in range(4)]
+        for x, units, is_grey in keys:
+            ky = DESK_Y + TERM_LIP + (front - z) * math.tan(deck_slope) + key_h / 2 - 0.2
+            sc.box((x + units * pitch / 2, ky, z), (units * pitch - 0.32, key_h, pitch - 0.32), grey if is_grey else dark,
+                   rotation=(TERM_DECK_SLOPE + 4, 0, 0), roughness=0.6, shadows=False)
 
     # A small badge under the screen, and the power lamp.
-    side_w = W / 2 - mon.w / 2 - B
-    v_badge = -v_open - 3
+    v_badge = open_bottom - 2.5
     sc.box(at(0, v_badge, D + 0.1), (7, 1.8, 0.2), "#3a3e5a", rotation=lean)
-    sc.sphere(at(W / 2 - side_w / 2, v_badge, D + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
+    sc.sphere(at(W / 2 - 4, v_badge, D + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
 
+    # Notes go on the face below the hood, either side of the badge, and on the sides.
     textures = list(sticky_notes) + [None, None]
-    note_x = mon.w / 2 + B + side_w / 2
-    sc.spot("bezel-left", at(-note_x, mon.h / 2 - 2, D + 0.08), 6, in_face((0, 0, 4)), textures[0])
-    sc.spot("right-side", (W / 2 + 0.05, sy - 4, sz - 12), 6, (0, 90, -5), textures[1])
-    sc.spot("bezel-right", at(note_x, mon.h / 2 - 2, D + 0.08), 6, in_face((0, 0, -3)))
-    sc.spot("left-side", (-W / 2 - 0.05, sy - 6, sz - 16), 6, (0, -90, 4))
+    note_v = open_bottom - TERM_BELOW / 2
+    note_x = mon.w / 2 - 3
+    sc.spot("bezel-left", at(-note_x, note_v, D + 0.08), 5.5, in_face((0, 0, 4)), textures[0])
+    sc.spot("right-side", (W / 2 + 0.05, sy - 4, sz - 14), 6, (0, 90, -5), textures[1])
+    sc.spot("bezel-right", at(note_x, note_v, D + 0.08), 5.5, in_face((0, 0, -3)))
+    sc.spot("left-side", (-W / 2 - 0.05, sy - 6, sz - 18), 6, (0, -90, 4))
 
 
 def add_lcd(sc, mon, bezel, back, stand, glossy=False, power="#40a0ff", sticky_notes=()):
@@ -1252,8 +1251,7 @@ def room_70s(out, rng, mon):
             sc.box((x, 14 + k * 20, -6.6), (34, 17, 1), "#7a8a78", roughness=0.4)
             sc.box((x, 19 + k * 20, -5.8), (12, 1.6, 1.4), "#c8c8c0", metalness=0.6, roughness=0.3)
 
-    t_terminal_keys = save(keyboard_terminal(), out, "keyboard-terminal.png")
-    add_terminal(sc, mon, "#e6e2d6", "#dad5c7", t_terminal_keys, sticky_notes=[t_n1, t_n2])
+    add_terminal(sc, mon, "#e6e2d6", "#dad5c7", sticky_notes=[t_n1, t_n2])
 
     # Punch cards, a box of them, an orange mug and a pen holder.
     for k in range(5):
