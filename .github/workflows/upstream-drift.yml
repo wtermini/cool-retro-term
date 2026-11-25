@@ -21,6 +21,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0
+          # The token stays out of git's config, so it isn't sent when
+          # fetching from the original project.
+          persist-credentials: false
 
       - name: Compare with the original project
         env:
@@ -42,14 +45,17 @@ jobs:
             echo
             echo "Upstream: $(git rev-parse --short upstream/master), checked $(date -u +%Y-%m-%d)."
             echo
+            # Commit messages and file names come from the other repository:
+            # backticks are swapped out so they stay inside the code blocks
+            # (where links and @mentions aren't active).
             echo "### Commits to review"
             echo '```'
-            git log --no-merges --format='%h %ad %s' --date=short HEAD..upstream/master | head -100
+            git log --no-merges --format='%h %ad %s' --date=short HEAD..upstream/master | head -100 | tr '`' "'"
             echo '```'
             echo
             echo "### Files changed upstream since the fork point"
             echo '```'
-            git diff --stat "$(git merge-base HEAD upstream/master)" upstream/master | tail -40
+            git diff --stat "$(git merge-base HEAD upstream/master)" upstream/master | tail -40 | tr '`' "'"
             echo '```'
             echo
             echo "To bring them in: \`git fetch https://github.com/Swordfish90/cool-retro-term.git master && git merge FETCH_HEAD\`, then make any user-facing change in both apps (see CLAUDE.md)."

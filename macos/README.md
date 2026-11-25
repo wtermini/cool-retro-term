@@ -61,6 +61,11 @@ cd macos
 open "build/Cool Retro Term SE.app"
 ```
 
+CI builds with `--ci-hooks`, which makes the app honour a few `CRT_*`
+environment variables used to take screenshots (pick a profile, type a demo
+command, save the screen and quit). Normal builds leave them out, so nothing
+in the environment can drive the app; the CI download is rebuilt without them.
+
 `build-app.sh` exports the profiles and font table from the Qt sources
 (`scripts/export-shared-data.py`), copies the bundled fonts, builds with
 SwiftPM, assembles the `.app` bundle and signs it ad hoc so it runs locally.

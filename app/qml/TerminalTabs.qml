@@ -129,7 +129,7 @@ Item {
         }
         const channels = { red: "programRed", green: "programGreen", blue: "programBlue" }
         const level = parseInt(parts[4])
-        if (parts.length !== 5 || parts[3] !== "brightness" || !(parts[2] in channels)
+        if (parts.length !== 5 || parts[3] !== "brightness" || !channels.hasOwnProperty(parts[2])
                 || isNaN(level) || level < 0 || level > 255)
             return
         tabsModel.setProperty(index, channels[parts[2]], level)
@@ -263,6 +263,9 @@ Item {
                                 Label {
                                     visible: !tabButton.editing
                                     text: tabsRoot.displayTitle(model)
+                                    // Programs set the title (OSC 0/2): never treat it as HTML,
+                                    // which could load remote images or fake the tab's content.
+                                    textFormat: Text.PlainText
                                     elide: Text.ElideRight
                                     color: tabButton.colored
                                            ? (tabsRoot.luminance(tabButton.checked ? tabButton.fillColor : tabButton.background.color) > 0.55 ? "#111111" : "#ffffff")

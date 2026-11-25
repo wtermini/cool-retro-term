@@ -687,8 +687,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     /// with CRT_SNAPSHOT_PATH set, saves a PNG of the rendered screen a few
     /// seconds after launch, and quits afterwards if CRT_SNAPSHOT_QUIT=1.
     private func writeDebugSnapshot(renderer: CRTRenderer, uniforms: CRTUniforms, size: CGSize) {
-        let environment = ProcessInfo.processInfo.environment
-        guard let path = environment["CRT_SNAPSHOT_PATH"] else { return }
+        guard let path = CIHooks.value("CRT_SNAPSHOT_PATH") else { return }
         let image = officeActive
             ? officeView.snapshot().cgImage(forProposedRect: nil, context: nil, hints: nil)
             : renderer.renderImage(width: Int(size.width), height: Int(size.height),
@@ -704,7 +703,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         } else {
             NSLog("cool-retro-term: could not render snapshot")
         }
-        if environment["CRT_SNAPSHOT_QUIT"] == "1" {
+        if CIHooks.value("CRT_SNAPSHOT_QUIT") == "1" {
             NSApp.terminate(nil)
         }
     }

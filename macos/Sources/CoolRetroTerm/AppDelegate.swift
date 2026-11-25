@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             controller.window?.toggleFullScreen(nil)
         }
         // CI aid: save images of the Settings panes, then quit.
-        if let directory = ProcessInfo.processInfo.environment["CRT_SETTINGS_SNAPSHOT_DIR"] {
+        if let directory = CIHooks.value("CRT_SETTINGS_SNAPSHOT_DIR") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 SettingsWindowController.shared.writeSnapshots(to: URL(fileURLWithPath: directory)) {
                     NSApp.terminate(nil)

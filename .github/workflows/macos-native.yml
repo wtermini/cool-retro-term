@@ -32,7 +32,7 @@ jobs:
         run: xcrun -sdk macosx metal -c macos/Shaders/CRT.metal -o "$RUNNER_TEMP/CRT.air"
 
       - name: Build the app
-        run: macos/build-app.sh
+        run: macos/build-app.sh --ci-hooks
 
       - name: Launch and take screenshots
         # Each launch runs under lldb, so a crash prints a backtrace.
@@ -92,8 +92,15 @@ jobs:
             echo "PREVIEW-END"
           done
 
-      - name: Package
+      - name: Rebuild without the CI hooks for download
+        # The screenshots need the CRT_* settings (build-app.sh --ci-hooks);
+        # the app people download must not have them.
+        id: rebuild
         if: always()
+        run: macos/build-app.sh
+
+      - name: Package
+        if: always() && steps.rebuild.outcome == 'success'
         run: |
           if [ -d "macos/build/Cool Retro Term SE.app" ]; then
             ditto -c -k --keepParent "macos/build/Cool Retro Term SE.app" Cool-Retro-Term-SE-macOS.zip

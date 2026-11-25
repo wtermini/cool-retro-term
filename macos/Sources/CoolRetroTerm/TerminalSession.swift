@@ -117,7 +117,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
             currentDirectory: directory.map { ($0 as NSString).expandingTildeInPath } ?? NSHomeDirectory())
 
         // Debug aid for CI screenshots: type a command once the shell is up.
-        if let command = ProcessInfo.processInfo.environment["CRT_SNAPSHOT_COMMAND"] {
+        if let command = CIHooks.value("CRT_SNAPSHOT_COMMAND") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.crtView.terminal.send(data: ArraySlice(Array((command + "\n").utf8)))
             }

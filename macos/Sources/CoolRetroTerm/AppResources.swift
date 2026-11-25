@@ -26,6 +26,21 @@ import Foundation
 /// Inside the app bundle they live in Contents/Resources. When running with
 /// `swift run` from the source tree, they come from macos/.build/resources,
 /// which ./build-app.sh populates.
+/// Settings that CI uses to take screenshots (CRT_PROFILE, CRT_SNAPSHOT_PATH
+/// and so on, read from the environment). They exist only in builds made
+/// with `build-app.sh --ci-hooks`; in any other build every lookup is nil,
+/// so nothing in the environment can type commands into the shell or write
+/// files.
+enum CIHooks {
+    static func value(_ name: String) -> String? {
+        #if CI_HOOKS
+        return ProcessInfo.processInfo.environment[name]
+        #else
+        return nil
+        #endif
+    }
+}
+
 enum AppResources {
     static let directory: URL = {
         if let bundled = Bundle.main.resourceURL,

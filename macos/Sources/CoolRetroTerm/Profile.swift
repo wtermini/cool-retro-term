@@ -296,7 +296,7 @@ final class ProfileStore {
             return Profile(name: name, json: json)
         }
 
-        if let override = ProcessInfo.processInfo.environment["CRT_PROFILE"],
+        if let override = CIHooks.value("CRT_PROFILE"),
            let profile = profiles.first(where: { $0.name == override }) {
             // Used for CI screenshots.
             current = profile
@@ -326,15 +326,15 @@ final class ProfileStore {
         sharedOfficeMonitor = settings["officeMonitor"] as? String == "standard" ? .standard : .wide
         sharedOfficeZoom = (settings["officeZoom"] as? String).flatMap(OfficeZoom.init(rawValue:)) ?? .desk
         if let b = settings["officeStickyNotes"] as? Bool { sharedOfficeStickyNotes = b }
-        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_MONITOR"],
+        if let override = CIHooks.value("CRT_OFFICE_MONITOR"),
            let monitor = OfficeMonitor(rawValue: override) {
             sharedOfficeMonitor = monitor   // used for CI screenshots
         }
         if let b = settings["officeLookAround"] as? Bool { sharedOfficeLookAround = b }
-        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_3D"] {
+        if let override = CIHooks.value("CRT_OFFICE_3D") {
             sharedOffice3D = override != "0"   // used for CI screenshots
         }
-        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_SCENE"],
+        if let override = CIHooks.value("CRT_OFFICE_SCENE"),
            let scene = OfficeScene(rawValue: override) {
             sharedOfficeScene = scene   // used for CI screenshots
         }

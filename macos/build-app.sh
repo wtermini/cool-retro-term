@@ -30,10 +30,13 @@ REPO_DIR=$(cd .. && pwd)
 
 CONFIG=release
 ARCH_FLAGS=()
+SWIFT_FLAGS=()
 for arg in "$@"; do
     case "$arg" in
         --debug) CONFIG=debug ;;
         --universal) ARCH_FLAGS=(--arch arm64 --arch x86_64) ;;
+        # For CI only: honour the CRT_* screenshot settings (see CIHooks).
+        --ci-hooks) SWIFT_FLAGS=(-Xswiftc -DCI_HOOKS) ;;
         *) echo "unknown option: $arg" >&2; exit 1 ;;
     esac
 done
@@ -49,8 +52,8 @@ cp Shaders/CRT.metal "$RESOURCES/"
 mkdir -p "$RESOURCES/Office"
 cp "$REPO_DIR"/app/qml/office/* "$RESOURCES/Office/"
 
-swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
-BIN_DIR=$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)
+swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}
+BIN_DIR=$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"} --show-bin-path)
 
 VERSION=$(git -C "$REPO_DIR" describe --tags --always 2>/dev/null | sed 's/^v//' || echo 0.0.0)
 APP="$MACOS_DIR/build/Cool Retro Term SE.app"
