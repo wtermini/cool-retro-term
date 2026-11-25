@@ -31,16 +31,19 @@ View ▸ Office Mode puts the terminal on the screen of a CRT monitor in a 3D ro
 
 ## The office desk: sticky notes, calendar and an MCP server
 
-In office mode's 3D rooms, the three sticky notes (on the monitor, on its
-side and on the wall) and the wall calendar are live: the calendar shows this
-month with today circled, marks the days with events and lists the next
-few; the notes show whatever is written on them.
+In office mode's 3D rooms, the sticky notes and the wall calendar are live:
+the calendar shows this month with today circled, marks the days with events
+and lists the next few; each note shows what's written on it. There can be up
+to eight notes; they fill the monitor's bezel, its sides, the wall and the
+desk in turn.
 
-- **Edit them yourself**: View ▸ Office Mode ▸ Edit Notes and Calendar…, or
-  double-click a note or the calendar in the room.
-- **Let an agent use them**: both apps include a small MCP server that reads
-  and writes the desk. Register it with Claude Code (View ▸ Office Mode ▸
-  Copy Agent (MCP) Setup Command copies this for you):
+- **In the app**: View ▸ Office Mode ▸ Edit Notes and Calendar… adds,
+  rewrites, recolours and deletes notes, and adds, changes and deletes
+  events. In the room, double-click a note to edit it, or a day on the
+  calendar to add an event that day.
+- **For agents**: both apps include an MCP server for the desk. Register it
+  with Claude Code (View ▸ Office Mode ▸ Copy Agent (MCP) Setup Command copies
+  this line for you):
 
   ```sh
   claude mcp add office-desk -- "/Applications/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm" --mcp
@@ -48,17 +51,25 @@ few; the notes show whatever is written on them.
   claude mcp add office-desk -- /path/to/cool-retro-term --mcp
   ```
 
-  Its tools are `get_desk`, `set_sticky_note`, `list_calendar_events`,
-  `add_calendar_event`, `update_calendar_event` and `delete_calendar_event`.
+  Its tools are `get_desk`, `add_sticky_note`, `update_sticky_note`,
+  `delete_sticky_note`, `list_calendar_events`, `add_calendar_event`,
+  `update_calendar_event` and `delete_calendar_event`.
 
-Everything is kept in `office-desk.json` in the app's data folder
+Everything is kept in one file, `office-desk.json`, in the app's data folder
 (`~/Library/Application Support/cool-retro-term/cool-retro-term/` on macOS,
 `~/.local/share/cool-retro-term/cool-retro-term/` on Linux), shared by both
-apps and the server, so a change made anywhere shows up everywhere straight
-away. The server talks only over stdin/stdout (no network), touches only that
-file, and accepts only plain text within length limits, real dates and
-HH:MM times. The 2D office pictures show the notes and calendar as drawn,
-not live.
+apps and both servers, so a change made anywhere shows up everywhere straight
+away. Both apps read and write it the same way (UTF-8 JSON, version 2; files
+from the first version, with three fixed notes, are converted), take a lock
+(`office-desk.lock`) while changing it so the apps and agents don't
+overwrite each other, and count length limits in Unicode code points.
+`tests/office-desk/check.py`, run by CI against both apps, checks this.
+
+The server talks only over stdin/stdout (no network), touches only that file,
+and accepts only plain text within length limits (280 characters per note,
+120 per event title), real dates and HH:MM times, up to 8 notes and 500
+events. The 2D office pictures show the notes and calendar as drawn, not
+live.
 
 ## Keeping up with the original
 

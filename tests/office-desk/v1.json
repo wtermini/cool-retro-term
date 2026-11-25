@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "notes": {
+    "monitor": {"text": "Version 1 monitor note", "color": "blue"},
+    "side": {"text": "Version 1 side note", "color": "pink"},
+    "wall": {"text": "Version 1 wall note\nsecond line", "color": "green"}
+  },
+  "events": [
+    {"id": "abc123", "date": "2030-12-01", "time": "", "title": "Release"},
+    {"id": "bad date", "date": "2030-02-30", "time": "", "title": "Dropped: not a real date"}
+  ]
+}

@@ -51,25 +51,16 @@ View3D {
     /// Show the sticky notes.
     property bool stickyNotes: true
     /// The desk (officeDesk.notes and officeDesk.events). When set, the
-    /// sticky notes and the calendar show them; otherwise their pictures.
+    /// sticky notes go on the room's note places in order, and the calendar
+    /// shows the events; otherwise (the 2D pictures) the first three places
+    /// get scribbled notes and the calendar its picture.
     property var deskNotes
     property var deskEvents: []
     readonly property bool deskLive: deskNotes !== undefined && deskNotes !== null
-    /// Double-clicking a note ("note:monitor", "note:side", "note:wall") or
-    /// the calendar ("calendar") in the room.
-    signal editRequested(string what)
+    /// Double-clicking a note (what: "note:<id>") or a day on the calendar
+    /// (what: "calendar", date: "YYYY-MM-DD", or "" between the days).
+    signal editRequested(string what, string date)
 
-    function noteText(slot) { return deskLive && deskNotes[slot] ? deskNotes[slot].text : "" }
-    function notePaper(slot) { return deskLive && deskNotes[slot] ? deskNotes[slot].color : "yellow" }
-    property Item noteMonitorFace: StickyNoteFace {
-        text: view.noteText("monitor"); paper: view.notePaper("monitor")
-    }
-    property Item noteSideFace: StickyNoteFace {
-        text: view.noteText("side"); paper: view.notePaper("side")
-    }
-    property Item noteWallFace: StickyNoteFace {
-        text: view.noteText("wall"); paper: view.notePaper("wall")
-    }
     property Item calendarFace: CalendarFace {
         events: view.deskEvents || []
     }
@@ -229,11 +220,7 @@ View3D {
             visible: modelData.group !== "sticky-notes" || view.stickyNotes
             // Notes and the calendar show the desk's contents.
             readonly property string live: modelData.live || ""
-            readonly property Item liveFace: !view.deskLive ? null
-                : live === "calendar" ? view.calendarFace
-                : live === "note:monitor" ? view.noteMonitorFace
-                : live === "note:side" ? view.noteSideFace
-                : live === "note:wall" ? view.noteWallFace : null
+            readonly property Item liveFace: view.deskLive && live === "calendar" ? view.calendarFace : null
             readonly property var shapes: ({ "box": "#Cube", "cylinder": "#Cylinder",
                                              "sphere": "#Sphere", "plane": "#Rectangle" })
             source: shapes[modelData.shape]
@@ -271,6 +258,34 @@ View3D {
         }
     }
 
+    // The sticky notes, on the room's note places in order.
+    Repeater3D {
+        model: view.room.noteSpots || []
+        delegate: Model {
+            id: noteModel
+            required property var modelData
+            required property int index
+            readonly property var note: view.deskLive && index < view.deskNotes.length ? view.deskNotes[index] : null
+            property Item face: StickyNoteFace {
+                text: noteModel.note ? noteModel.note.text : ""
+                paper: noteModel.note ? noteModel.note.color : "yellow"
+            }
+            visible: view.stickyNotes && (view.deskLive ? noteModel.note !== null : !!modelData.texture)
+            source: "#Rectangle"
+            position: view.vec(modelData.position)
+            scale: Qt.vector3d(modelData.size / 100, modelData.size / 100, 1)
+            rotation: view.quat(modelData.rotation)
+            castsShadows: false
+            receivesShadows: true
+            materials: PrincipledMaterial {
+                roughness: 0.7
+                baseColorMap: view.deskLive ? noteFaceTexture : noteScribble
+                Texture { id: noteFaceTexture; sourceItem: view.deskLive ? noteModel.face : null }
+                Texture { id: noteScribble; source: noteModel.modelData.texture ? "office/" + noteModel.modelData.texture : "" }
+            }
+        }
+    }
+
     // The monitor's screen, showing the terminal. Unlit, so it shows the
     // CRT's own colours; pickable, so clicks reach the terminal.
     Model {
@@ -288,21 +303,26 @@ View3D {
         }
     }
 
-    /// The note or calendar ("note:monitor", "calendar"...) under a point
-    /// in the view, if it's the nearest thing there, or "". Worked out here
+    /// The note or calendar under a point in the view, if it's the nearest
+    /// thing there: {what: "note:<id>" or "calendar" or "", date: the
+    /// calendar day under the point, if any}. Worked out here
     /// rather than with pick(), so that clicks on the room's objects aren't
     /// taken by the view and still reach the double-click handler below.
     function liveObjectAt(x, y) {
         if (!room.objects)
-            return ""
+            return { what: "", date: "" }
         const p0 = camera.mapFromViewport(Qt.vector3d(x / width, y / height, 0))
         const p1 = camera.mapFromViewport(Qt.vector3d(x / width, y / height, 100))
-        let found = "", nearest = Infinity
-        const candidates = room.objects.concat(room.screen ? [{ shape: "plane", position: room.screen.position,
+        let found = "", nearest = Infinity, hitU = 0, hitV = 0
+        let candidates = room.objects.concat(room.screen ? [{ shape: "plane", position: room.screen.position,
             size: [room.screen.size[0], room.screen.size[1], 1], rotation: room.screen.rotation }] : [])
+        if (deskLive && stickyNotes) {
+            const spots = room.noteSpots || []
+            for (let i = 0; i < Math.min(spots.length, deskNotes.length); ++i)
+                candidates.push({ shape: "plane", position: spots[i].position, size: [spots[i].size, spots[i].size, 1],
+                                  rotation: spots[i].rotation, live: "note:" + deskNotes[i].id })
+        }
         for (const o of candidates) {
-            if (o.group === "sticky-notes" && !stickyNotes)
-                continue
             // The ray in the object's own unit space: a 1 x 1 square at z = 0
             // for a plane, a 1 x 1 x 1 box for anything else.
             const inverse = quat(o.rotation).inverted()
@@ -335,18 +355,20 @@ View3D {
             if (t >= 0 && t < nearest) {
                 nearest = t
                 found = o.live || ""
+                hitU = o0[0] + d[0] * t + 0.5
+                hitV = 0.5 - (o0[1] + d[1] * t)
             }
         }
-        return found
+        return { what: found, date: found === "calendar" ? calendarFace.dateAt(hitU, hitV) : "" }
     }
 
     // Double-click a sticky note or the calendar to edit it.
     TapHandler {
         acceptedModifiers: Qt.NoModifier
         onDoubleTapped: (eventPoint) => {
-            const what = view.liveObjectAt(eventPoint.position.x, eventPoint.position.y)
-            if (what)
-                view.editRequested(what)
+            const hit = view.liveObjectAt(eventPoint.position.x, eventPoint.position.y)
+            if (hit.what)
+                view.editRequested(hit.what, hit.date)
         }
     }
 

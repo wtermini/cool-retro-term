@@ -44,12 +44,13 @@ Scene format: units are centimetres, Y is up, and the camera starts out
 looking down -Z. Shapes are unit sized and scaled by "size": a box is
 1 x 1 x 1, a cylinder is 1 across and 1 high, a sphere is 1 across, and a
 "plane" is 1 x 1 in the XY plane, facing +Z. "rotation" is a quaternion
-[x, y, z, w]. Objects with "group": "sticky-notes" are hidden when the
-sticky notes are turned off. Objects with "live" are drawn by the apps
-from the desk data (office-desk.json: the notes' text and the calendar's
-events) instead of their texture, which is kept for the 2D pictures:
-"note:monitor", "note:side" and "note:wall" are the three sticky notes,
-and "calendar" is the wall calendar. Light intensities are in Qt Quick 3D's brightness units
+[x, y, z, w]. The object with "live": "calendar" is the wall calendar, which the apps
+draw from the desk data (office-desk.json) instead of its texture, which is
+kept for the 2D pictures. "noteSpots" are the places for sticky notes, in
+the order they're filled (the desk has up to that many notes): position,
+size (the note is square, lying in its XY plane, facing +Z) and rotation.
+The first three have a "texture", the scribbled note drawn there in the 2D
+pictures. Light intensities are in Qt Quick 3D's brightness units
 (1 = its default).
 
 Requires Pillow and numpy.
@@ -94,6 +95,16 @@ class Scene:
         self.name = name
         self.objects = []
         self.lights = []
+        self.spots = {}   # where sticky notes can go, by name
+
+    def spot(self, name, position, size, rotation=(0, 0, 0), texture=None):
+        """A place for a sticky note. `texture` is the scribbled note drawn
+        there in the 2D pictures (only the first three places have one)."""
+        spot = {"position": [round(float(v), 3) for v in position], "size": round(float(size), 2),
+                "rotation": quat(*rotation)}
+        if texture:
+            spot["texture"] = texture
+        self.spots[name] = spot
 
     def add(self, shape, position, size, color="#808080", rotation=(0, 0, 0), texture=None,
             repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True, group=None,
@@ -353,9 +364,10 @@ WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 31, -29.6, 29, DESK_Y + 53.5, 110)
 
 
 def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
-    """The monitor, screen facing +Z. `sticky_notes` are up to two note
-    textures: the first goes on the bezel above the top left corner of the
-    screen, the second on the right side of the casing."""
+    """The monitor, screen facing +Z, and places for sticky notes on it: on
+    the bezel above the screen's top corners and on both sides of the
+    casing. `sticky_notes` are the textures of the first two (for the 2D
+    pictures)."""
     sy, sz = mon.y, mon.z
     if mon is WIDE:
         # Dark base plate and swivel.
@@ -390,13 +402,12 @@ def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
         sc.sphere((10, chin, sz - 0.3), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
     top_border = mon.top - (sy + mon.h / 2)   # bezel above the screen
     size = min(5.5, top_border - 0.8)
-    for i, tex in enumerate(sticky_notes):
-        if i == 0:
-            sc.plane((-mon.w / 2 + size / 2 + 1, sy + mon.h / 2 + top_border / 2, sz - 0.45), size, size,
-                     rotation=(0, 0, 4), texture=tex, shadows=False, group="sticky-notes", live="note:monitor")
-        else:
-            sc.plane((mon.half_width + 0.05, sy - 4, sz - 5), 6, 6, rotation=(0, 90, -5), texture=tex,
-                     shadows=False, group="sticky-notes", live="note:side")
+    textures = list(sticky_notes) + [None, None]
+    bezel_y = sy + mon.h / 2 + top_border / 2
+    sc.spot("bezel-left", (-mon.w / 2 + size / 2 + 1, bezel_y, sz - 0.45), size, (0, 0, 4), textures[0])
+    sc.spot("right-side", (mon.half_width + 0.05, sy - 4, sz - 5), 6, (0, 90, -5), textures[1])
+    sc.spot("bezel-right", (mon.w / 2 - size / 2 - 1, bezel_y, sz - 0.45), size, (0, 0, -3))
+    sc.spot("left-side", (-mon.half_width - 0.05, sy - 2, sz - 8), 6, (0, -90, 4))
 
 
 def add_keyboard(sc, base, tex):
@@ -443,8 +454,10 @@ def room_80s(out, rng, mon):
     t_n3 = save(sticky(rng, (180, 230, 160)), out, "sticky-green.png")
     add_monitor(sc, mon, "#d6ccb2", "#aaa088", sticky_notes=[t_n1, t_n2])
     sc.plane((-48, 158, -89.3), 30, 37.5, texture=t_cal, roughness=0.6, live="calendar")
-    sc.plane((-14, 164, -89.3), 7, 7, rotation=(0, 0, -6), texture=t_n3, shadows=False, group="sticky-notes",
-             live="note:wall")
+    sc.spot("wall-1", (-14, 164, -89.3), 7, (0, 0, -6), t_n3)
+    sc.spot("wall-2", (18, 168, -89.3), 7, (0, 0, 4))
+    sc.spot("wall-3", (40, 176, -89.3), 7, (0, 0, -3))
+    sc.spot("desk", (-34, DESK_Y + 0.06, -12), 7, (-90, 12, 0))
     add_keyboard(sc, "#c8bea4", t_keys)
 
     # Poster and a shelf with books and a cassette deck.
@@ -568,8 +581,10 @@ def room_90s(out, rng, mon):
     sc.plane((-55, 115, -88.8), 34, 42.5, texture=t_calendar, roughness=0.6, live="calendar")
     sc.plane((50, 118, -88.8), 21, 27, rotation=(0, 0, 3), texture=t_memo, roughness=0.6)
     sc.plane((72, 110, -88.8), 21, 27, rotation=(0, 0, -4), texture=t_memo, roughness=0.6)
-    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False, group="sticky-notes",
-             live="note:wall")
+    sc.spot("wall-1", (-91.8, 110, -40), 7, (0, 90, 0), t_green)
+    sc.spot("wall-2", (-15, 142, -88.8), 7, (0, 0, -4))
+    sc.spot("wall-3", (26, 140, -88.8), 7, (0, 0, 5))
+    sc.spot("desk", (-34, DESK_Y + 0.06, -12), 7, (-90, 12, 0))
 
     # Mouse mat and mouse, phone, styrofoam cup and a stack of paper.
     sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#6a5aa8", roughness=0.8)
@@ -627,6 +642,10 @@ def picture(name, mon, fill, has_notes):
     return info
 
 
+# The order notes are placed in: the first one on the monitor's bezel, and so on.
+NOTE_SPOT_ORDER = ["bezel-left", "right-side", "wall-1", "bezel-right", "wall-2", "wall-3", "desk", "left-side"]
+
+
 def finish(sc, mon, background, ambient, fill):
     return {
         "name": sc.name,
@@ -639,11 +658,12 @@ def finish(sc, mon, background, ambient, fill):
                    "minDistance": 30, "maxDistance": 280,
                    "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
         "screen": {"position": [0, mon.y, mon.z], "size": [mon.w, mon.h], "rotation": quat()},
-        "picture": picture(sc.name, mon, fill, any(o.get("group") == "sticky-notes" for o in sc.objects)),
+        "picture": picture(sc.name, mon, fill, any("texture" in s for s in sc.spots.values())),
         # Light cast by the screen, in the profile's text colour.
         "screenGlow": {"position": [0, mon.y, mon.z + 15], "intensity": 0.6, "range": 120},
         "lights": sc.lights,
         "objects": sc.objects,
+        "noteSpots": [sc.spots[name] for name in NOTE_SPOT_ORDER],
     }
 
 

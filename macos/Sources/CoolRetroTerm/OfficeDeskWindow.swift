@@ -43,11 +43,13 @@ final class OfficeDeskWindowController: NSWindowController {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// what: "note:monitor", "note:side", "note:wall", "calendar" or "".
-    func show(focusing what: String) {
+    /// what: "note:<id>", "calendar" or "". `date` (YYYY-MM-DD) is the
+    /// calendar day to add an event on.
+    func show(focusing what: String, date: String? = nil) {
         model.reload()
         model.tab = what == "calendar" ? .calendar : .notes
         model.focusedNote = what.hasPrefix("note:") ? String(what.dropFirst(5)) : nil
+        model.newEventDate = date
         window?.center()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -61,7 +63,8 @@ final class OfficeDeskModel: ObservableObject {
 
     @Published var tab = Tab.notes
     @Published var focusedNote: String?
-    @Published var notes: [String: DeskNote] = [:]
+    @Published var newEventDate: String?
+    @Published var notes: [DeskNote] = []
     @Published var events: [DeskEvent] = []
 
     private var observer: NSObjectProtocol?
@@ -128,25 +131,26 @@ private struct OfficeDeskView: View {
 private struct NotesEditor: View {
     @ObservedObject var model: OfficeDeskModel
 
-    private static let names = ["monitor": "On the monitor", "side": "On the side of the monitor", "wall": "On the wall"]
-
     var body: some View {
         Form {
-            ForEach(OfficeDesk.slots, id: \.self) { slot in
-                NoteEditor(slot: slot, name: Self.names[slot] ?? slot,
-                           note: model.notes[slot] ?? DeskNote(text: "", color: "yellow"),
-                           focused: model.focusedNote == slot)
+            ForEach(model.notes) { note in
+                NoteEditor(note: note, focused: model.focusedNote == note.id)
             }
-            Text("Up to \(OfficeDesk.maxNoteLength) characters each. Saved as you type.")
-                .foregroundStyle(.secondary)
+            Section {
+                HStack {
+                    Button("Add Note") { _ = OfficeDesk.shared.addNote(text: "", color: nil) }
+                        .disabled(model.notes.count >= OfficeDesk.maxNotes)
+                    Spacer()
+                    Text("\(model.notes.count) of \(OfficeDesk.maxNotes) notes, up to \(OfficeDesk.maxNoteLength) characters each. Saved as you type.")
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
     }
 }
 
 private struct NoteEditor: View {
-    let slot: String
-    let name: String
     let note: DeskNote
     let focused: Bool
 
@@ -158,26 +162,27 @@ private struct NoteEditor: View {
         Section {
             TextEditor(text: $text)
                 .font(.body)
-                .frame(height: 70)
+                .frame(height: 60)
                 .focused($hasFocus)
                 .onChange(of: text) { newValue in
                     guard newValue != note.text else { return }
                     pendingSave?.cancel()
-                    let save = DispatchWorkItem { _ = OfficeDesk.shared.setNote(slot, text: newValue, color: nil) }
+                    let id = note.id
+                    let save = DispatchWorkItem { _ = OfficeDesk.shared.updateNote(id: id, text: newValue, color: nil) }
                     pendingSave = save
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: save)
                 }
         } header: {
             HStack {
-                Text(name)
-                Spacer()
                 Picker("Colour", selection: Binding(
                     get: { note.color },
-                    set: { _ = OfficeDesk.shared.setNote(slot, text: text, color: $0) })) {
+                    set: { _ = OfficeDesk.shared.updateNote(id: note.id, text: text, color: $0) })) {
                     ForEach(OfficeDesk.colors, id: \.self) { Text($0.capitalized).tag($0) }
                 }
                 .labelsHidden()
                 .frame(width: 110)
+                Spacer()
+                Button("Delete") { _ = OfficeDesk.shared.removeNote(id: note.id) }
             }
         }
         .onAppear {
@@ -226,12 +231,22 @@ private struct CalendarEditor: View {
             }
         }
         .formStyle(.grouped)
+        // A day double-clicked on the calendar in the room.
+        .onAppear(perform: useRequestedDate)
+        .onChange(of: model.newEventDate) { _ in useRequestedDate() }
+    }
+
+    private func useRequestedDate() {
+        guard let iso = model.newEventDate else { return }
+        let parts = iso.split(separator: "-").compactMap { Int($0) }
+        if parts.count == 3, let value = Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) {
+            date = value
+        }
+        model.newEventDate = nil
     }
 
     private func add() {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        let iso = String(format: "%04d-%02d-%02d", c.year ?? 2000, c.month ?? 1, c.day ?? 1)
-        if OfficeDesk.shared.addEvent(date: iso, time: time.trimmingCharacters(in: .whitespaces), title: title) != nil {
+        if OfficeDesk.shared.addEvent(date: OfficeDesk.iso(date), time: time.trimmingCharacters(in: .whitespaces), title: title) != nil {
             title = ""
             time = ""
             error = false

@@ -397,7 +397,7 @@ Item {
                     // The notes' text and the calendar's events.
                     item.deskNotes = Qt.binding(() => officeDesk.notes)
                     item.deskEvents = Qt.binding(() => officeDesk.events)
-                    item.editRequested.connect((what) => officeDeskWindow.openAt(what))
+                    item.editRequested.connect((what, date) => officeDeskWindow.openAt(what, date))
                     item.time = Qt.binding(() => timeManager.time)
                     item.glowColor = Qt.binding(() => appSettings.fontColor)
                     item.lookAround = Qt.binding(() => appSettings.officeLookAround)

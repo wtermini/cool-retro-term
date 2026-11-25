@@ -1,0 +1,13 @@
+{
+  "events": [
+    {"date": "2030-01-02", "id": "e2", "time": "14:00", "title": "Review été — café ☕"},
+    {"date": "2030-01-01", "id": "e1", "time": "09:30", "title": "Standup"},
+    {"date": "2030-01-03", "id": "e3", "time": "25:00", "title": "Dropped: not a real time"}
+  ],
+  "notes": [
+    {"color": "orange", "id": "n1", "text": "Unicode: 日本語, emoji 🚀"},
+    {"color": "purple", "id": "n2", "text": "Unknown colour becomes yellow\u0007"},
+    {"color": "blue", "id": "N3!", "text": "A bad id gets a new one"}
+  ],
+  "version": 2
+}

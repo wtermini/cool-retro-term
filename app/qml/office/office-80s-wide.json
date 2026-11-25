@@ -1381,66 +1381,6 @@
   {
    "shape": "plane",
    "position": [
-    -19.75,
-    124.6,
-    -30.05
-   ],
-   "size": [
-    5.5,
-    5.5,
-    1.0
-   ],
-   "rotation": [
-    0.0,
-    0.0,
-    0.034899,
-    0.999391
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-yellow.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:monitor"
-  },
-  {
-   "shape": "plane",
-   "position": [
-    29.05,
-    102.0,
-    -34.6
-   ],
-   "size": [
-    6.0,
-    6.0,
-    1.0
-   ],
-   "rotation": [
-    0.030844,
-    0.706434,
-    -0.030844,
-    0.706434
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-pink.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:side"
-  },
-  {
-   "shape": "plane",
-   "position": [
     -48.0,
     158.0,
     -89.3
@@ -1466,36 +1406,6 @@
     1.0
    ],
    "live": "calendar"
-  },
-  {
-   "shape": "plane",
-   "position": [
-    -14.0,
-    164.0,
-    -89.3
-   ],
-   "size": [
-    7.0,
-    7.0,
-    1.0
-   ],
-   "rotation": [
-    0.0,
-    0.0,
-    -0.052336,
-    0.99863
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-green.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:wall"
   },
   {
    "shape": "box",
@@ -2487,6 +2397,123 @@
    "repeat": [
     1.0,
     1.0
+   ]
+  }
+ ],
+ "noteSpots": [
+  {
+   "position": [
+    -19.75,
+    124.6,
+    -30.05
+   ],
+   "size": 5.5,
+   "rotation": [
+    0.0,
+    0.0,
+    0.034899,
+    0.999391
+   ],
+   "texture": "sticky-yellow.png"
+  },
+  {
+   "position": [
+    29.05,
+    102.0,
+    -34.6
+   ],
+   "size": 6.0,
+   "rotation": [
+    0.030844,
+    0.706434,
+    -0.030844,
+    0.706434
+   ],
+   "texture": "sticky-pink.png"
+  },
+  {
+   "position": [
+    -14.0,
+    164.0,
+    -89.3
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.0,
+    -0.052336,
+    0.99863
+   ],
+   "texture": "sticky-green.png"
+  },
+  {
+   "position": [
+    19.75,
+    124.6,
+    -30.05
+   ],
+   "size": 5.5,
+   "rotation": [
+    0.0,
+    0.0,
+    -0.026177,
+    0.999657
+   ]
+  },
+  {
+   "position": [
+    18.0,
+    168.0,
+    -89.3
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.0,
+    0.034899,
+    0.999391
+   ]
+  },
+  {
+   "position": [
+    40.0,
+    176.0,
+    -89.3
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.0,
+    -0.026177,
+    0.999657
+   ]
+  },
+  {
+   "position": [
+    -34.0,
+    75.06,
+    -12.0
+   ],
+   "size": 7.0,
+   "rotation": [
+    -0.703233,
+    0.073913,
+    0.073913,
+    0.703233
+   ]
+  },
+  {
+   "position": [
+    -29.05,
+    104.0,
+    -37.6
+   ],
+   "size": 6.0,
+   "rotation": [
+    0.024678,
+    -0.706676,
+    0.024678,
+    0.706676
    ]
   }
  ]

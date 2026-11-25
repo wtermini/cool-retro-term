@@ -134,6 +134,24 @@ enum OfficeDeskArt {
         }
     }
 
+    /// The date of the day under a point on the calendar page (u, v from 0
+    /// to 1, from the top left), or nil if it isn't on a day of this month.
+    /// The same layout as calendar(_:) above and CalendarFace.qml.
+    static func calendarDate(u: CGFloat, v: CGFloat, now: Date = Date()) -> String? {
+        let x = u * 384, y = v * 480
+        let cellWidth: CGFloat = 352 / 7
+        guard x >= 16, x < 368, y >= 226, y < 226 + 6 * 28 else { return nil }
+        let index = Int((y - 226) / 28) * 7 + Int((x - 16) / cellWidth)
+        let calendar = Calendar.current
+        let parts = calendar.dateComponents([.year, .month], from: now)
+        guard let first = calendar.date(from: DateComponents(year: parts.year, month: parts.month, day: 1)) else { return nil }
+        let daysInMonth = calendar.range(of: .day, in: .month, for: first)?.count ?? 30
+        let offset = (calendar.component(.weekday, from: first) - 1 - (calendar.firstWeekday - 1) + 7) % 7
+        let day = index - offset + 1
+        guard day >= 1, day <= daysInMonth else { return nil }
+        return String(format: "%04d-%02d-%02d", parts.year ?? 2000, parts.month ?? 1, day)
+    }
+
     private static func draw(_ text: String, in rect: NSRect, size: CGFloat, bold: Bool, color: NSColor,
                              alignment: NSTextAlignment) {
         let paragraph = NSMutableParagraphStyle()

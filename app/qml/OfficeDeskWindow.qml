@@ -33,8 +33,6 @@ ApplicationWindow {
     height: 640
     visible: false
 
-    readonly property var slots: ["monitor", "side", "wall"]
-    readonly property var slotNames: [qsTr("On the monitor"), qsTr("On the side of the monitor"), qsTr("On the wall")]
     readonly property var colors: ["yellow", "pink", "green", "blue", "orange"]
     readonly property var colorNames: [qsTr("Yellow"), qsTr("Pink"), qsTr("Green"), qsTr("Blue"), qsTr("Orange")]
 
@@ -43,15 +41,21 @@ ApplicationWindow {
         return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2)
     }
 
-    /// what: "note:monitor", "note:side", "note:wall", "calendar" or "".
-    function openAt(what) {
+    /// what: "note:<id>", "calendar" or "". date (YYYY-MM-DD): the calendar
+    /// day to add an event on.
+    function openAt(what, date) {
         show()
         raise()
         requestActivate()
         tabs.currentIndex = what === "calendar" ? 1 : 0
-        const index = slots.indexOf(what.replace("note:", ""))
-        if (index >= 0)
-            noteRepeater.itemAt(index).focusText()
+        if (date)
+            newDate.text = date
+        if (what === "calendar")
+            newTitle.forceActiveFocus()
+        const notes = officeDesk.notes
+        for (let i = 0; i < notes.length; ++i)
+            if ("note:" + notes[i].id === what && noteRepeater.itemAt(i))
+                noteRepeater.itemAt(i).focusText()
     }
 
     header: TabBar {
@@ -66,53 +70,66 @@ ApplicationWindow {
         currentIndex: tabs.currentIndex
 
         ColumnLayout {
-            spacing: 12
-            Repeater {
-                id: noteRepeater
-                model: deskWindow.slots
-                ColumnLayout {
-                    id: noteEditor
-                    required property string modelData
-                    required property int index
-                    readonly property var note: officeDesk.notes[modelData] || ({ text: "", color: "yellow" })
+            spacing: 8
+            RowLayout {
+                Layout.fillWidth: true
+                Button {
+                    text: qsTr("Add Note")
+                    enabled: officeDesk.notes.length < officeDesk.maxNotes
+                    onClicked: officeDesk.addNote("", "")
+                }
+                Label {
                     Layout.fillWidth: true
-                    function focusText() { textArea.forceActiveFocus() }
-                    function save() { officeDesk.setNote(modelData, textArea.text, deskWindow.colors[colorBox.currentIndex]) }
+                    text: qsTr("%1 of %2 notes, up to 280 characters each. Saved when you click away.")
+                          .arg(officeDesk.notes.length).arg(officeDesk.maxNotes)
+                    opacity: 0.7
+                    elide: Text.ElideRight
+                }
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: availableWidth
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 10
+                    Repeater {
+                        id: noteRepeater
+                        model: officeDesk.notes
+                        ColumnLayout {
+                            id: noteEditor
+                            required property var modelData
+                            Layout.fillWidth: true
+                            function focusText() { textArea.forceActiveFocus() }
+                            function save() {
+                                if (textArea.text !== modelData.text || deskWindow.colors[colorBox.currentIndex] !== modelData.color)
+                                    officeDesk.updateNote(modelData.id, textArea.text, deskWindow.colors[colorBox.currentIndex])
+                            }
 
-                    RowLayout {
-                        Label { text: deskWindow.slotNames[noteEditor.index]; font.bold: true; Layout.fillWidth: true }
-                        ComboBox {
-                            id: colorBox
-                            model: deskWindow.colorNames
-                            currentIndex: Math.max(deskWindow.colors.indexOf(noteEditor.note.color), 0)
-                            onActivated: noteEditor.save()
-                        }
-                    }
-                    TextArea {
-                        id: textArea
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 90
-                        textFormat: TextEdit.PlainText
-                        wrapMode: TextEdit.Wrap
-                        placeholderText: qsTr("Blank")
-                        text: noteEditor.note.text
-                        onActiveFocusChanged: if (!activeFocus) noteEditor.save()
-                        // Keep up with changes from the other app or an agent
-                        // unless it's being edited.
-                        Connections {
-                            target: officeDesk
-                            function onChanged() { if (!textArea.activeFocus) textArea.text = noteEditor.note.text }
+                            RowLayout {
+                                ComboBox {
+                                    id: colorBox
+                                    model: deskWindow.colorNames
+                                    currentIndex: Math.max(deskWindow.colors.indexOf(noteEditor.modelData.color), 0)
+                                    onActivated: noteEditor.save()
+                                }
+                                Item { Layout.fillWidth: true }
+                                Button { text: qsTr("Delete"); onClicked: officeDesk.removeNote(noteEditor.modelData.id) }
+                            }
+                            TextArea {
+                                id: textArea
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 70
+                                textFormat: TextEdit.PlainText
+                                wrapMode: TextEdit.Wrap
+                                placeholderText: qsTr("Blank")
+                                text: noteEditor.modelData.text
+                                onActiveFocusChanged: if (!activeFocus) noteEditor.save()
+                            }
                         }
                     }
                 }
             }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.Wrap
-                text: qsTr("Up to %1 characters each. Saved when you click away.").arg(280)
-                opacity: 0.7
-            }
-            Item { Layout.fillHeight: true }
         }
 
         ColumnLayout {

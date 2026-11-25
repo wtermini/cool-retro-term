@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'macos/**'
+      - 'tests/office-desk/**'
       - 'app/qml/fonts/**'
       - 'app/qml/ApplicationSettings.qml'
       - 'app/qml/office/**'
@@ -34,22 +35,10 @@ jobs:
       - name: Build the app
         run: macos/build-app.sh --ci-hooks
 
-      - name: Check the office desk MCP server
+      - name: Check the office desk data format and MCP server
         run: |
-          APP_BIN="macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm"
-          out=$(printf '%s\n' \
-            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}' \
-            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"set_sticky_note","arguments":{"note":"monitor","text":"Hello from CI"}}}' \
-            '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"add_calendar_event","arguments":{"date":"2030-01-02","title":"CI check"}}}' \
-            '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"add_calendar_event","arguments":{"date":"2030-02-30","title":"invalid"}}}' \
-            | "$APP_BIN" --mcp)
-          echo "$out"
-          echo "$out" | grep -q '"Note updated."'
-          echo "$out" | grep -q 'CI check'
-          echo "$out" | grep -q '"isError":true'
-          grep -q "Hello from CI" "$HOME/Library/Application Support/cool-retro-term/cool-retro-term/office-desk.json"
+          python3 tests/office-desk/check.py "macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm" \
+            "$HOME/Library/Application Support/cool-retro-term/cool-retro-term/office-desk.json"
 
       - name: Launch and take screenshots
         # Each launch runs under lldb, so a crash prints a backtrace.

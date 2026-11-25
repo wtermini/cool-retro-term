@@ -104,6 +104,13 @@ struct OfficeRoom: Decodable {
     }
     struct Screen: Decodable { var position: [Float]; var size: [Float]; var rotation: [Float] }
     struct Glow: Decodable { var position: [Float]; var intensity: Float; var range: Float }
+    /// A place for a sticky note: a square of `size`, in its XY plane.
+    struct NoteSpot: Decodable {
+        var position: [Float]
+        var size: Float
+        var rotation: [Float]
+        var texture: String?   // the scribbled note drawn there in the 2D pictures
+    }
     /// The room seen straight on, for 2D: rectangles are in the picture's
     /// pixels, from the top left.
     struct Picture: Decodable {
@@ -141,6 +148,7 @@ struct OfficeRoom: Decodable {
     var camera: Camera
     var screen: Screen
     var screenGlow: Glow
+    var noteSpots: [NoteSpot]
     var picture: Picture
     var lights: [Light]
     var objects: [Object]
@@ -248,6 +256,9 @@ final class OfficeSceneView: SCNView {
     /// Where `distance` is heading; it eases there a little each frame.
     private var targetDistance: Float = 100
     private var noteNodes: [SCNNode] = []
+    /// The sticky notes in the room, by node, with the id of the note each shows.
+    private var noteIDs: [ObjectIdentifier: String] = [:]
+    private weak var noteParent: SCNNode?
     /// The sticky notes and the calendar, by their "live" name.
     private var liveNodes: [String: SCNNode] = [:]
     private var deskObserver: NSObjectProtocol?
@@ -298,21 +309,36 @@ final class OfficeSceneView: SCNView {
         if let deskObserver { NotificationCenter.default.removeObserver(deskObserver) }
     }
 
-    /// Draws the sticky notes' text and the calendar from the desk.
+    /// Puts the desk's sticky notes at the room's note places, in order, and
+    /// draws the calendar.
     private func drawDesk() {
         let desk = OfficeDesk.shared
         calendarDay = OfficeDesk.today()
-        for (live, node) in liveNodes {
-            let image: NSImage
-            if live == "calendar" {
-                image = OfficeDeskArt.calendar(desk.events)
-            } else if let note = desk.notes[String(live.dropFirst("note:".count))] {
-                image = OfficeDeskArt.note(note)
-            } else {
-                continue
-            }
-            node.geometry?.firstMaterial?.diffuse.contents = image
-            node.geometry?.firstMaterial?.diffuse.contentsTransform = SCNMatrix4Identity
+        if let calendar = liveNodes["calendar"]?.geometry?.firstMaterial {
+            calendar.diffuse.contents = OfficeDeskArt.calendar(desk.events)
+            calendar.diffuse.contentsTransform = SCNMatrix4Identity
+        }
+
+        noteNodes.forEach { $0.removeFromParentNode() }
+        noteNodes = []
+        noteIDs = [:]
+        guard let parent = noteParent, let spots = room?.noteSpots else { return }
+        for (note, spot) in zip(desk.notes, spots) {
+            let material = SCNMaterial()
+            material.lightingModel = .physicallyBased
+            material.diffuse.contents = OfficeDeskArt.note(note)
+            material.roughness.contents = NSNumber(value: 0.7)
+            let plane = SCNPlane(width: 1, height: 1)
+            plane.materials = [material]
+            let node = SCNNode(geometry: plane)
+            node.simdPosition = vector(spot.position)
+            node.simdScale = SIMD3(spot.size, spot.size, 1)
+            node.simdOrientation = quaternion(spot.rotation)
+            node.castsShadow = false
+            node.isHidden = !stickyNotes
+            parent.addChildNode(node)
+            noteNodes.append(node)
+            noteIDs[ObjectIdentifier(node)] = note.id
         }
     }
 
@@ -385,7 +411,9 @@ final class OfficeSceneView: SCNView {
     private func build(_ room: OfficeRoom) -> SCNScene {
         let scene = SCNScene()
         noteNodes = []
+        noteIDs = [:]
         liveNodes = [:]
+        noteParent = scene.rootNode
         scene.background.contents = NSColor(hex: room.background)
         var textures: [String: NSImage] = [:]
         func texture(_ name: String) -> NSImage? {
@@ -434,10 +462,6 @@ final class OfficeSceneView: SCNView {
             node.simdScale = vector(object.size)
             node.simdOrientation = quaternion(object.rotation)
             node.castsShadow = object.shadows
-            if object.group == "sticky-notes" {
-                node.isHidden = !stickyNotes
-                noteNodes.append(node)
-            }
             if let live = object.live {
                 liveNodes[live] = node
             }
@@ -570,20 +594,28 @@ final class OfficeSceneView: SCNView {
             return
         }
         // Double-click a sticky note or the calendar to edit it.
-        if event.clickCount == 2, let what = liveObject(at: event) {
-            OfficeDeskWindowController.shared.show(focusing: what)
+        if event.clickCount == 2, let hit = liveObject(at: event) {
+            OfficeDeskWindowController.shared.show(focusing: hit.what, date: hit.date)
             return
         }
         forward(event)
     }
 
-    /// The note or calendar under the pointer, if it's the nearest thing there.
-    private func liveObject(at event: NSEvent) -> String? {
+    /// The note ("note:<id>") or calendar day ("calendar", with its date)
+    /// under the pointer, if it's the nearest thing there.
+    private func liveObject(at event: NSEvent) -> (what: String, date: String?)? {
         let point = convert(event.locationInWindow, from: nil)
         guard let hit = hitTest(point, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue]).first else {
             return nil
         }
-        return liveNodes.first { $0.value === hit.node }?.key
+        if let id = noteIDs[ObjectIdentifier(hit.node)] {
+            return ("note:" + id, nil)
+        }
+        guard hit.node === liveNodes["calendar"] else { return nil }
+        // Where on the page, from the top left (the page is 1 x 1 in its own space).
+        let local = hit.node.simdConvertPosition(SIMD3(Float(hit.worldCoordinates.x), Float(hit.worldCoordinates.y),
+                                                       Float(hit.worldCoordinates.z)), from: nil)
+        return ("calendar", OfficeDeskArt.calendarDate(u: CGFloat(local.x + 0.5), v: CGFloat(0.5 - local.y)))
     }
 
     override func mouseDragged(with event: NSEvent) {

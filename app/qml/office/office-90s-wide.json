@@ -1881,66 +1881,6 @@
    "emissive": "#30ff60"
   },
   {
-   "shape": "plane",
-   "position": [
-    -19.75,
-    124.6,
-    -30.05
-   ],
-   "size": [
-    5.5,
-    5.5,
-    1.0
-   ],
-   "rotation": [
-    0.0,
-    0.0,
-    0.034899,
-    0.999391
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-yellow.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:monitor"
-  },
-  {
-   "shape": "plane",
-   "position": [
-    29.05,
-    102.0,
-    -34.6
-   ],
-   "size": [
-    6.0,
-    6.0,
-    1.0
-   ],
-   "rotation": [
-    0.030844,
-    0.706434,
-    -0.030844,
-    0.706434
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-pink.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:side"
-  },
-  {
    "shape": "cylinder",
    "position": [
     80.0,
@@ -2285,36 +2225,6 @@
    ]
   },
   {
-   "shape": "plane",
-   "position": [
-    -91.8,
-    110.0,
-    -40.0
-   ],
-   "size": [
-    7.0,
-    7.0,
-    1.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    0.707107
-   ],
-   "color": "#ffffff",
-   "roughness": 0.7,
-   "metalness": 0.0,
-   "shadows": false,
-   "texture": "sticky-green.png",
-   "repeat": [
-    1.0,
-    1.0
-   ],
-   "group": "sticky-notes",
-   "live": "note:wall"
-  },
-  {
    "shape": "box",
    "position": [
     36.0,
@@ -2635,6 +2545,123 @@
    "roughness": 0.7,
    "metalness": 0.0,
    "shadows": true
+  }
+ ],
+ "noteSpots": [
+  {
+   "position": [
+    -19.75,
+    124.6,
+    -30.05
+   ],
+   "size": 5.5,
+   "rotation": [
+    0.0,
+    0.0,
+    0.034899,
+    0.999391
+   ],
+   "texture": "sticky-yellow.png"
+  },
+  {
+   "position": [
+    29.05,
+    102.0,
+    -34.6
+   ],
+   "size": 6.0,
+   "rotation": [
+    0.030844,
+    0.706434,
+    -0.030844,
+    0.706434
+   ],
+   "texture": "sticky-pink.png"
+  },
+  {
+   "position": [
+    -91.8,
+    110.0,
+    -40.0
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "texture": "sticky-green.png"
+  },
+  {
+   "position": [
+    19.75,
+    124.6,
+    -30.05
+   ],
+   "size": 5.5,
+   "rotation": [
+    0.0,
+    0.0,
+    -0.026177,
+    0.999657
+   ]
+  },
+  {
+   "position": [
+    -15.0,
+    142.0,
+    -88.8
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.0,
+    -0.034899,
+    0.999391
+   ]
+  },
+  {
+   "position": [
+    26.0,
+    140.0,
+    -88.8
+   ],
+   "size": 7.0,
+   "rotation": [
+    0.0,
+    0.0,
+    0.043619,
+    0.999048
+   ]
+  },
+  {
+   "position": [
+    -34.0,
+    75.06,
+    -12.0
+   ],
+   "size": 7.0,
+   "rotation": [
+    -0.703233,
+    0.073913,
+    0.073913,
+    0.703233
+   ]
+  },
+  {
+   "position": [
+    -29.05,
+    104.0,
+    -37.6
+   ],
+   "size": 6.0,
+   "rotation": [
+    0.024678,
+    -0.706676,
+    0.024678,
+    0.706676
+   ]
   }
  ]
 }

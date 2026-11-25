@@ -31,7 +31,8 @@ rendering fixes and security hardening.
 - The office desk (sticky notes and calendar) is `office-desk.json`, read and
   written by `app/officedesk.cpp` and `macos/Sources/CoolRetroTerm/OfficeDesk.swift`,
   each of which also has the same MCP server (`--mcp`). Keep the two in step:
-  same file format, limits, tools and messages.
+  same file format, limits, lock, tools and messages;
+  `tests/office-desk/check.py` (run by both CI workflows) checks them.
 - Changes to `qmltermwidget` go in `patches/qmltermwidget-*.patch`; qmake
   applies them automatically (see `patches/README.md`). Don't commit changes
   inside the submodule itself.

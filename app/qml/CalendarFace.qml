@@ -52,6 +52,19 @@ Rectangle {
     }
     readonly property var upcoming: (events || []).filter(e => e.date >= todayIso).slice(0, 3)
 
+    /// The date of the day under a point on the page (u, v from 0 to 1,
+    /// from the top left), or "" if it isn't on a day of this month. The same
+    /// layout as below (and OfficeDeskArt.calendarDate in Cool Retro Term SE).
+    function dateAt(u, v) {
+        const x = u * width, y = v * height
+        const cellWidth = (width - 32) / 7
+        if (x < 16 || x >= width - 16 || y < 226 || y >= 226 + 6 * 28)
+            return ""
+        const index = Math.floor((y - 226) / 28) * 7 + Math.floor((x - 16) / cellWidth)
+        const day = index - offset + 1
+        return day >= 1 && day <= daysInMonth ? iso(year, month, day) : ""
+    }
+
     function pad(n) { return (n < 10 ? "0" : "") + n }
     function iso(y, m, d) { return y + "-" + pad(m + 1) + "-" + pad(d) }
     function shortDate(isoDate) {
