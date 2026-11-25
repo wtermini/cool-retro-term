@@ -42,6 +42,12 @@ QtObject {
     // GENERAL SETTINGS ///////////////////////////////////////////////////////
     property bool showMenubar: false
 
+    // Shared with Cool Retro Term SE (the native macOS app).
+    property bool newLineKeys: true          // Shift/Control-Return insert a new line
+    property bool alwaysShowTabBar: false
+    property bool secureKeyboardEntry: false // macOS only
+    onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
+
     property bool showTerminalSize: true
     property real windowScaling: 1.0
 
@@ -164,6 +170,9 @@ QtObject {
             "showTerminalSize": showTerminalSize,
             "fontScaling": fontScaling,
             "showMenubar": showMenubar,
+            "newLineKeys": newLineKeys,
+            "alwaysShowTabBar": alwaysShowTabBar,
+            "secureKeyboardEntry": secureKeyboardEntry,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -252,6 +261,9 @@ QtObject {
         fontScaling = settings.fontScaling !== undefined ? settings.fontScaling : fontScaling
 
         showMenubar = settings.showMenubar !== undefined ? settings.showMenubar : showMenubar
+        newLineKeys = settings.newLineKeys !== undefined ? settings.newLineKeys : newLineKeys
+        alwaysShowTabBar = settings.alwaysShowTabBar !== undefined ? settings.alwaysShowTabBar : alwaysShowTabBar
+        secureKeyboardEntry = settings.secureKeyboardEntry !== undefined ? settings.secureKeyboardEntry : secureKeyboardEntry
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality

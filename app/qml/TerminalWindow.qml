@@ -118,6 +118,12 @@ ApplicationWindow {
         onTriggered: terminalTabs.addTab()
     }
     Action {
+        id: renameTabAction
+        text: qsTr("Rename Tab")
+        shortcut: appSettings.isMacOS ? "Meta+Shift+R" : "Ctrl+Shift+R"
+        onTriggered: terminalTabs.renameCurrentTab()
+    }
+    Action {
         id: closeTabAction
         text: qsTr("Close Tab")
         shortcut: appSettings.isMacOS ? "Meta+W" : "Ctrl+Shift+W"

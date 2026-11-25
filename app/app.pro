@@ -19,15 +19,18 @@ DESTDIR = $$OUT_PWD/../
 
 HEADERS += \
     fileio.h \
+    secureinput.h \
     fontmanager.h \
     fontlistmodel.h
 
 SOURCES += main.cpp \
     fileio.cpp \
+    secureinput.cpp \
     fontmanager.cpp \
     fontlistmodel.cpp
 
 macx:ICON = icons/crt.icns
+macx:LIBS += -framework Carbon
 
 RESOURCES += qml/resources.qrc
 

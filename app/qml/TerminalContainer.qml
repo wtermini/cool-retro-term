@@ -27,6 +27,7 @@ ShaderTerminal {
     property alias terminalSize: terminal.terminalSize
     property bool isActive: false
     signal sessionFinished()
+    signal tabColorRequested(string spec)
 
     property bool loadBloomEffect: appSettings.bloom > 0 || appSettings._frameShininess > 0
 
@@ -47,6 +48,7 @@ ShaderTerminal {
         anchors.fill: parent
         isActive: mainShader.isActive
         onSessionFinished: mainShader.sessionFinished()
+        onTabColorRequested: (spec) => mainShader.tabColorRequested(spec)
     }
 
     function activate() {

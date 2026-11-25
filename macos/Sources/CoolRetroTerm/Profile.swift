@@ -248,6 +248,10 @@ final class ProfileStore {
     private(set) var bloomQuality = 0.5
     private(set) var burnInQuality = 0.5
     private(set) var showTerminalSize = true
+    /// Shared with the Qt app too (its Advanced settings).
+    private(set) var sharedNewLineKeys = true
+    private(set) var sharedAlwaysShowTabBar = false
+    private(set) var sharedSecureKeyboardEntry = false
 
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []
@@ -304,6 +308,9 @@ final class ProfileStore {
         if let n = settings["bloomQuality"] as? NSNumber { bloomQuality = min(max(n.doubleValue, 0.25), 1) }
         if let n = settings["burnInQuality"] as? NSNumber { burnInQuality = min(max(n.doubleValue, 0.25), 1) }
         if let b = settings["showTerminalSize"] as? Bool { showTerminalSize = b }
+        if let b = settings["newLineKeys"] as? Bool { sharedNewLineKeys = b }
+        if let b = settings["alwaysShowTabBar"] as? Bool { sharedAlwaysShowTabBar = b }
+        if let b = settings["secureKeyboardEntry"] as? Bool { sharedSecureKeyboardEntry = b }
         if settings["useCustomCommand"] as? Bool == true,
            let command = settings["customCommand"] as? String {
             let arguments = tokenizeCommandLine(command)
@@ -482,8 +489,8 @@ final class ProfileStore {
 
     /// Shift-Return and Control-Return insert a new line.
     var newLineKeys: Bool {
-        get { bool("newLineKeys", default: true) }
-        set { store("newLineKeys", newValue) }
+        get { sharedNewLineKeys }
+        set { sharedNewLineKeys = newValue; writeAppSetting("newLineKeys", newValue) }
     }
 
     /// Keep the tab bar visible in full screen.
@@ -494,8 +501,14 @@ final class ProfileStore {
 
     /// Show the tab bar even when a window has a single tab.
     var alwaysShowTabBar: Bool {
-        get { UserDefaults.standard.bool(forKey: "alwaysShowTabBar") }
-        set { UserDefaults.standard.set(newValue, forKey: "alwaysShowTabBar"); notify() }
+        get { sharedAlwaysShowTabBar }
+        set { sharedAlwaysShowTabBar = newValue; writeAppSetting("alwaysShowTabBar", newValue) }
+    }
+
+    /// Secure Keyboard Entry (macOS), shared with the Qt app.
+    var secureKeyboardEntry: Bool {
+        get { sharedSecureKeyboardEntry }
+        set { sharedSecureKeyboardEntry = newValue; writeAppSetting("secureKeyboardEntry", newValue) }
     }
 
     var effectsEnabled: Bool {

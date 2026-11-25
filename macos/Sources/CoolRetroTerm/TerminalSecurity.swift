@@ -205,9 +205,9 @@ final class SecureKeyboardEntry {
     private var active = false
 
     var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "secureKeyboardEntry") }
+        get { ProfileStore.shared.secureKeyboardEntry }
         set {
-            UserDefaults.standard.set(newValue, forKey: "secureKeyboardEntry")
+            ProfileStore.shared.secureKeyboardEntry = newValue
             update(appIsActive: NSApp.isActive)
         }
     }

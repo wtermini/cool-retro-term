@@ -19,6 +19,7 @@
 #include <QLoggingCategory>
 
 #include <fileio.h>
+#include <secureinput.h>
 #include <fontlistmodel.h>
 #include <fontmanager.h>
 
@@ -100,6 +101,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     FileIO fileIO;
+    SecureInput secureInput;
 
     qmlRegisterType<FontManager>("CoolRetroTerm", 1, 0, "FontManager");
     qmlRegisterUncreatableType<FontListModel>("CoolRetroTerm", 1, 0, "FontListModel", "FontListModel is created by FontManager");
@@ -129,6 +131,7 @@ int main(int argc, char *argv[])
 
     engine.rootContext()->setContextProperty("workdir", getNamedArgument(args, "--workdir", QDir::currentPath()));
     engine.rootContext()->setContextProperty("fileIO", &fileIO);
+    engine.rootContext()->setContextProperty("secureInput", &secureInput);
 
     // Manage import paths for Linux and OSX.
     QStringList importPathList = engine.importPathList();

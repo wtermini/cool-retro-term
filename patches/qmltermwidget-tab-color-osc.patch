@@ -1,0 +1,76 @@
+diff --git a/lib/Session.cpp b/lib/Session.cpp
+index 21a265d..93ee015 100644
+--- a/lib/Session.cpp
++++ b/lib/Session.cpp
+@@ -336,6 +336,13 @@ void Session::setUserTitle( int what, const QString & caption )
+     //set to true if anything is actually changed (eg. old _nameTitle != new _nameTitle )
+     bool modified = false;
+ 
++    // OSC 6: tab colour ("1;bg;red;brightness;N", "1;bg;*;default"),
++    // interpreted by the front end.
++    if (what == 6) {
++        emit tabColorRequested(caption);
++        return;
++    }
++
+     // (btw: what=0 changes _userTitle and icon, what=1 only icon, what=2 only _nameTitle
+     if ((what == 0) || (what == 2)) {
+         _isTitleChanged = true;
+diff --git a/lib/Session.h b/lib/Session.h
+index fd4aa4d..ae2bf91 100644
+--- a/lib/Session.h
++++ b/lib/Session.h
+@@ -414,6 +414,8 @@ public slots:
+     void setUserTitle( int, const QString & caption );
+ 
+ signals:
++    /** Emitted for an OSC 6 tab colour sequence; @p spec is its text after "6;". */
++    void tabColorRequested(const QString & spec);
+ 
+     /** Emitted when the terminal process starts. */
+     void started();
+diff --git a/lib/Vt102Emulation.cpp b/lib/Vt102Emulation.cpp
+index be82181..bf30344 100644
+--- a/lib/Vt102Emulation.cpp
++++ b/lib/Vt102Emulation.cpp
+@@ -405,6 +405,14 @@ void Vt102Emulation::processWindowAttributeChange()
+   // ignored, only the second char in ST ("\e\\") is appended to tokenBuffer.
+   QString newValue = QString::fromWCharArray(tokenBuffer + i + 1, tokenBufferPos-i-2);
+ 
++  // OSC 6 (tab colour) is sent as several sequences in a row, one per colour
++  // channel, so pass each one on instead of keeping only the last.
++  if (attributeToChange == 6)
++  {
++    emit titleChanged(attributeToChange, newValue);
++    return;
++  }
++
+   _pendingTitleUpdates[attributeToChange] = newValue;
+   _titleUpdateTimer->start(20);
+ }
+diff --git a/lib/ksession.cpp b/lib/ksession.cpp
+index e17ec8a..f3a5088 100644
+--- a/lib/ksession.cpp
++++ b/lib/ksession.cpp
+@@ -40,6 +40,7 @@ KSession::KSession(QObject *parent) :
+     connect(m_session, SIGNAL(started()), this, SIGNAL(started()));
+     connect(m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
+     connect(m_session, SIGNAL(titleChanged()), this, SIGNAL(titleChanged()));
++    connect(m_session, SIGNAL(tabColorRequested(QString)), this, SIGNAL(tabColorRequested(QString)));
+ }
+ 
+ KSession::~KSession()
+diff --git a/lib/ksession.h b/lib/ksession.h
+index f4e9d6e..11c928f 100644
+--- a/lib/ksession.h
++++ b/lib/ksession.h
+@@ -127,6 +127,9 @@ signals:
+ 
+     void titleChanged();
+ 
++    /** OSC 6 tab colour sequence from the running program (text after "6;"). */
++    void tabColorRequested(QString spec);
++
+     void historySizeChanged();
+ 
+     void initialWorkingDirectoryChanged();

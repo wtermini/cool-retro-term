@@ -1,0 +1,34 @@
+# Working on this repository
+
+This fork has two front ends that share one configuration:
+
+- **The Qt app** (`app/`, QML + C++, terminal emulation from the
+  `qmltermwidget` submodule) for Linux and macOS.
+- **Cool Retro Term SE** (`macos/`, Swift/AppKit/Metal, terminal emulation
+  from SwiftTerm), the native macOS edition. See `macos/README.md`.
+
+## Keep both front ends in step
+
+Any user-facing change made to one front end must be made to the other in the
+same piece of work, unless it is genuinely platform-specific (say so in the
+commit message if so). This covers features, keyboard behaviour, settings,
+rendering fixes and security hardening.
+
+- Settings that both apps have are stored in the Qt app's settings database
+  (`_CURRENT_SETTINGS`, `_CURRENT_PROFILE`, `_CUSTOM_PROFILES`; see
+  `macos/Sources/CoolRetroTerm/QtSettings.swift`), so a setting changed in one
+  app shows up in the other. Add new shared settings there, with the same key
+  in `app/qml/ApplicationSettings.qml` and `ProfileStore` in
+  `macos/Sources/CoolRetroTerm/Profile.swift`.
+- Built-in profiles and the font table live in the Qt sources and are exported
+  to the native app at build time (`macos/scripts/export-shared-data.py`).
+- Changes to `qmltermwidget` go in `patches/qmltermwidget-*.patch`; qmake
+  applies them automatically (see `patches/README.md`). Don't commit changes
+  inside the submodule itself.
+
+## Building and checking
+
+- Native app: `macos/build-app.sh`; CI is `.github/workflows/macos-native.yml`
+  (builds, launches each profile and screenshots the CRT and Settings panes).
+- Qt app: `qmake && make` from the repository root; CI is
+  `.github/workflows/release.yml`.

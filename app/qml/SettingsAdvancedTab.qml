@@ -60,6 +60,24 @@ ColumnLayout {
                 onCheckedChanged: appSettings.blinkingCursor = checked
             }
             CheckBox {
+                text: qsTr("Shift-Return and Control-Return insert a new line")
+                checked: appSettings.newLineKeys
+                onCheckedChanged: appSettings.newLineKeys = checked
+            }
+            CheckBox {
+                text: qsTr("Always show the tab bar")
+                checked: appSettings.alwaysShowTabBar
+                onCheckedChanged: appSettings.alwaysShowTabBar = checked
+            }
+            CheckBox {
+                text: qsTr("Secure Keyboard Entry")
+                visible: appSettings.isMacOS
+                checked: appSettings.secureKeyboardEntry
+                onCheckedChanged: appSettings.secureKeyboardEntry = checked
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Stops other apps from reading what you type while this app is in front.")
+            }
+            CheckBox {
                 id: showMenubar
                 text: qsTr("Show Menubar")
                 enabled: !appSettings.isMacOS

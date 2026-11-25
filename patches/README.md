@@ -19,7 +19,19 @@ looks out of place (on macOS it can come out looking like a stray letter).
 The patch changes files in qmltermwidget, which is licensed under the GNU
 GPL version 2 or later. The changes are under the same license.
 
-Apply it before building:
+## qmltermwidget-tab-color-osc.patch
+
+Reports the OSC 6 tab colour escape sequence (`ESC ] 6 ; 1 ; bg ; red ;
+brightness ; N BEL`, and `... ; * ; default` to reset) to QML, as the
+`tabColorRequested(spec)` signal on `QMLTermSession`, so programs can colour
+their tab, as they can in Cool Retro Term SE. Each sequence is passed on
+straight away, because one colour is sent as three sequences in a row.
+
+## Applying
+
+`cool-retro-term.pro` applies every `qmltermwidget-*.patch` here when you run
+qmake, skipping any that are already applied, so a normal build needs no extra
+step:
 
     git submodule update --init
-    git -C qmltermwidget apply ../patches/qmltermwidget-draw-block-elements.patch
+    qmake && make

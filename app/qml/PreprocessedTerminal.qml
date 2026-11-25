@@ -29,6 +29,7 @@ import "utils.js" as Utils
 Item{
     id: terminalContainer
     signal sessionFinished()
+    signal tabColorRequested(string spec)
 
     property size virtualResolution: Qt.size(kterminal.totalWidth, kterminal.totalHeight)
     property alias mainTerminal: kterminal
@@ -96,6 +97,27 @@ Item{
     QMLTermWidget {
         id: kterminal
 
+        // Shift-Return and Control-Return insert a new line in programs that
+        // support it (such as Claude Code) instead of submitting: Shift sends
+        // ESC + Return (like Option-Return with Option as Meta), Control a
+        // line feed (like Control-J). (main.cpp keeps Qt from swapping Control
+        // and Command on macOS, so Control is the Control modifier everywhere.)
+        Keys.priority: Keys.BeforeItem
+        Keys.onPressed: (event) => {
+            if (!appSettings.newLineKeys)
+                return
+            if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter)
+                return
+            const mods = event.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)
+            if (mods === Qt.ShiftModifier) {
+                ksession.sendText("\u001b\r")
+                event.accepted = true
+            } else if (mods === Qt.ControlModifier) {
+                ksession.sendText("\n")
+                event.accepted = true
+            }
+        }
+
         property int textureResolutionScale: appSettings.lowResolutionFont ? Screen.devicePixelRatio : 1
         property int margin: appSettings.margin / screenScaling
         property int totalWidth: Math.floor(parent.width / (screenScaling * fontWidth))
@@ -125,6 +147,8 @@ Item{
             onFinished: {
                 terminalContainer.sessionFinished()
             }
+
+            onTabColorRequested: (spec) => terminalContainer.tabColorRequested(spec)
         }
 
         QMLTermScrollbar {
