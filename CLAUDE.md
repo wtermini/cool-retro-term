@@ -31,4 +31,5 @@ rendering fixes and security hardening.
 - Native app: `macos/build-app.sh`; CI is `.github/workflows/macos-native.yml`
   (builds, launches each profile and screenshots the CRT and Settings panes).
 - Qt app: `qmake && make` from the repository root; CI is
-  `.github/workflows/release.yml`.
+  `.github/workflows/qt-app.yml` (build only). `release.yml` publishes
+  releases from master and tags, so don't run it on other branches.
