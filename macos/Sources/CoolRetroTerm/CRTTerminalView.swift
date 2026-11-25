@@ -260,8 +260,17 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         // With effects on, the cursor is blinked when capturing (the caret's
         // own animation isn't captured); with them off, SwiftTerm blinks it.
-        let style: CursorStyle = profile.blinkingCursor && !showsEffects ? .blinkBlock : .steadyBlock
+        let blink = profile.blinkingCursor && !showsEffects
+        let style: CursorStyle
+        switch ProfileStore.shared.cursorShape {
+        case 1: style = blink ? .blinkUnderline : .steadyUnderline
+        case 2: style = blink ? .blinkBar : .steadyBar
+        default: style = blink ? .blinkBlock : .steadyBlock
+        }
         terminal.terminal.setCursorStyle(style)
+        // Keep the cursor solid when the window isn't focused (SwiftTerm
+        // would draw a hollow block), as the Qt app does.
+        terminal.caretViewTracksFocus = false
 
         let store = ProfileStore.shared
         renderer?.bloomQuality = store.bloomQuality

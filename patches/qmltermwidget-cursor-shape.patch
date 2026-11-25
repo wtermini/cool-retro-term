@@ -1,0 +1,50 @@
+diff --git a/lib/TerminalDisplay.cpp b/lib/TerminalDisplay.cpp
+index d6c1edf..644c650 100644
+--- a/lib/TerminalDisplay.cpp
++++ b/lib/TerminalDisplay.cpp
+@@ -741,6 +741,14 @@ QTermWidget::KeyboardCursorShape TerminalDisplay::keyboardCursorShape() const
+ {
+     return _cursorShape;
+ }
++
++void TerminalDisplay::setCursorShapeValue(int shape)
++{
++    if (shape < 0 || shape > 2 || shape == cursorShapeValue())
++        return;
++    setKeyboardCursorShape(static_cast<QTermWidget::KeyboardCursorShape>(shape));
++    emit cursorShapeChanged();
++}
+ void TerminalDisplay::setKeyboardCursorColor(bool useForegroundColor, const QColor& color)
+ {
+     if (useForegroundColor)
+diff --git a/lib/TerminalDisplay.h b/lib/TerminalDisplay.h
+index 6f10aef..3d7ad96 100644
+--- a/lib/TerminalDisplay.h
++++ b/lib/TerminalDisplay.h
+@@ -110,6 +110,8 @@ class KONSOLEPRIVATE_EXPORT TerminalDisplay : public QQuickPaintedItem
+    Q_PROPERTY(bool enableItalic         READ getItalicEnabled WRITE setItalicEnabled NOTIFY italicEnabledChanged )
+    Q_PROPERTY(bool fullCursorHeight     READ fullCursorHeight WRITE setFullCursorHeight NOTIFY fullCursorHeightChanged)
+    Q_PROPERTY(bool blinkingCursor       READ blinkingCursor   WRITE setBlinkingCursor NOTIFY blinkingCursorStateChanged)
++   /** Cursor shape for QML: 0 block, 1 underline, 2 bar (I-beam). */
++   Q_PROPERTY(int cursorShape           READ cursorShapeValue WRITE setCursorShapeValue NOTIFY cursorShapeChanged)
+    Q_PROPERTY(bool antialiasText        READ antialias       WRITE setAntialias)
+    Q_PROPERTY(QStringList availableColorSchemes READ availableColorSchemes NOTIFY availableColorSchemesChanged)
+    Q_PROPERTY(bool useFBORendering      READ useFBORendering WRITE setUseFBORendering)
+@@ -265,6 +267,9 @@ public:
+      */
+     QTermWidget::KeyboardCursorShape keyboardCursorShape() const;
+ 
++    int cursorShapeValue() const { return static_cast<int>(_cursorShape); }
++    void setCursorShapeValue(int shape);
++
+     /**
+      * Sets the color used to draw the keyboard cursor.
+      *
+@@ -677,6 +682,7 @@ signals:
+     void colorSchemeChanged();
+     void fullCursorHeightChanged();
+     void blinkingCursorStateChanged();
++    void cursorShapeChanged();
+     void boldIntenseChanged();
+     void italicEnabledChanged();
+ 

@@ -149,6 +149,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.effectsEnabled.toggle()
     }
 
+    @objc func chooseCursorShape(_ sender: NSMenuItem) {
+        ProfileStore.shared.cursorShape = sender.tag
+    }
+
     /// The profile's blinking cursor setting (shared with the Qt app).
     @objc func toggleBlinkingCursor(_ sender: Any?) {
         ProfileStore.shared.updateCurrent { $0.blinkingCursor.toggle() }
@@ -226,6 +230,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return frontController != nil
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
+        case #selector(chooseCursorShape(_:)):
+            menuItem.state = menuItem.tag == ProfileStore.shared.cursorShape ? .on : .off
         case #selector(toggleBlinkingCursor(_:)):
             menuItem.state = ProfileStore.shared.current.blinkingCursor ? .on : .off
         case #selector(toggleSecureKeyboardEntry(_:)):
@@ -345,6 +351,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         view.addItem(withTitle: "Profile", action: nil, keyEquivalent: "").submenu = profiles
         view.addItem(item("CRT Effects", #selector(toggleEffects(_:)), "e", [.command, .option]))
         view.addItem(item("Blinking Cursor", #selector(toggleBlinkingCursor(_:))))
+        let shapes = NSMenu(title: "Cursor Shape")
+        for (index, title) in ["Solid Block", "Underline", "Bar"].enumerated() {
+            let entry = item(title, #selector(chooseCursorShape(_:)))
+            entry.tag = index
+            shapes.addItem(entry)
+        }
+        view.addItem(withTitle: "Cursor Shape", action: nil, keyEquivalent: "").submenu = shapes
         view.addItem(item("Always Show Tab Bar", #selector(toggleAlwaysShowTabBar(_:))))
         view.addItem(.separator())
         view.addItem(item("Bigger", #selector(makeTextBigger(_:)), "+"))

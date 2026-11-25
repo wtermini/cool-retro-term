@@ -47,6 +47,7 @@ QtObject {
     property bool alwaysShowTabBar: false
     property bool secureKeyboardEntry: false // macOS only
     property bool pauseEffectsWhenIdle: false  // optional: stop animating effects when nothing happens
+    property int cursorShape: 0                // 0 solid block, 1 underline, 2 bar
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
@@ -175,6 +176,7 @@ QtObject {
             "alwaysShowTabBar": alwaysShowTabBar,
             "secureKeyboardEntry": secureKeyboardEntry,
             "pauseEffectsWhenIdle": pauseEffectsWhenIdle,
+            "cursorShape": cursorShape,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -267,6 +269,7 @@ QtObject {
         alwaysShowTabBar = settings.alwaysShowTabBar !== undefined ? settings.alwaysShowTabBar : alwaysShowTabBar
         secureKeyboardEntry = settings.secureKeyboardEntry !== undefined ? settings.secureKeyboardEntry : secureKeyboardEntry
         pauseEffectsWhenIdle = settings.pauseEffectsWhenIdle !== undefined ? settings.pauseEffectsWhenIdle : pauseEffectsWhenIdle
+        cursorShape = settings.cursorShape !== undefined ? settings.cursorShape : cursorShape
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality

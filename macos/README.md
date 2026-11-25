@@ -94,7 +94,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   - *Profiles*: choose, save, delete, import and export profiles; turn the
     CRT effects on or off; colours, brightness, contrast and opacity.
   - *Text*: font (bundled retro fonts or any monospaced font on your Mac),
-    size, width, line spacing and the blinking cursor.
+    size, width, line spacing, cursor shape (solid block, underline or
+    bar) and the blinking cursor. Both are also in the View menu, and the
+    cursor stays solid when the window isn't focused.
   - *Effects*: rasterization, bloom, burn-in, noise, jitter, glowing line,
     curvature, flicker, sync, RGB shift and the frame.
   - *Performance*: effects frame rate and texture, bloom and burn-in quality.

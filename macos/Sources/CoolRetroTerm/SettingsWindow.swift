@@ -123,7 +123,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         switch pane {
         case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 560))
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
-        case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 320))
+        case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 370))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
         case .performance: return AnyView(PerformanceSettings(model: model).frame(width: 540, height: 300))
         }
@@ -188,6 +188,9 @@ final class SettingsModel: ObservableObject {
     }
     var burnInQuality: Binding<Double> {
         Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var cursorShape: Binding<Int> {
+        Binding(get: { ProfileStore.shared.cursorShape }, set: { ProfileStore.shared.cursorShape = $0 })
     }
     var pauseEffectsWhenIdle: Binding<Bool> {
         Binding(get: { ProfileStore.shared.pauseEffectsWhenIdle }, set: { ProfileStore.shared.pauseEffectsWhenIdle = $0 })
@@ -444,6 +447,11 @@ private struct TextSettings: View {
                 LabeledSlider("Line spacing", value: model.number(\.lineSpacing), percent: true)
             }
             Section("Cursor") {
+                Picker("Shape", selection: model.cursorShape) {
+                    Text("Solid block").tag(0)
+                    Text("Underline").tag(1)
+                    Text("Bar").tag(2)
+                }
                 Toggle("Blinking cursor", isOn: model.flag(\.blinkingCursor))
             }
         }

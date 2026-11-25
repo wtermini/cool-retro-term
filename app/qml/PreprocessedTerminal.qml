@@ -139,6 +139,7 @@ Item{
 
         fullCursorHeight: true
         blinkingCursor: appSettings.blinkingCursor
+        cursorShape: appSettings.cursorShape
 
         colorScheme: "cool-retro-term"
 

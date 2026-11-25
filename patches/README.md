@@ -19,6 +19,11 @@ looks out of place (on macOS it can come out looking like a stray letter).
 The patch changes files in qmltermwidget, which is licensed under the GNU
 GPL version 2 or later. The changes are under the same license.
 
+## qmltermwidget-cursor-shape.patch
+
+Exposes the cursor shape to QML as `QMLTermWidget.cursorShape` (0 block,
+1 underline, 2 bar), for the Cursor Shape setting.
+
 ## qmltermwidget-session-signals.patch
 
 Adds two signals to `QMLTermSession`:

@@ -58,6 +58,12 @@ MenuBar {
             checked: appSettings.blinkingCursor
             onTriggered: appSettings.blinkingCursor = checked
         }
+        Menu {
+            title: qsTr("Cursor Shape")
+            MenuItem { text: qsTr("Solid Block"); checkable: true; checked: appSettings.cursorShape === 0; onTriggered: appSettings.cursorShape = 0 }
+            MenuItem { text: qsTr("Underline"); checkable: true; checked: appSettings.cursorShape === 1; onTriggered: appSettings.cursorShape = 1 }
+            MenuItem { text: qsTr("Bar"); checkable: true; checked: appSettings.cursorShape === 2; onTriggered: appSettings.cursorShape = 2 }
+        }
     }
     Menu {
         id: profilesMenu

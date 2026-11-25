@@ -59,6 +59,14 @@ ColumnLayout {
                 checked: appSettings.blinkingCursor
                 onCheckedChanged: appSettings.blinkingCursor = checked
             }
+            RowLayout {
+                Label { text: qsTr("Cursor Shape") }
+                ComboBox {
+                    model: [qsTr("Solid block"), qsTr("Underline"), qsTr("Bar")]
+                    currentIndex: appSettings.cursorShape
+                    onActivated: (index) => appSettings.cursorShape = index
+                }
+            }
             CheckBox {
                 text: qsTr("Shift-Return and Control-Return insert a new line")
                 checked: appSettings.newLineKeys
