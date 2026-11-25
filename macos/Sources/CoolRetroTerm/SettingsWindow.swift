@@ -22,7 +22,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The Settings window (Cool Retro Term ▸ Settings…, Cmd-Comma), laid out
+/// The Settings window (Cool Retro Term SE ▸ Settings…, Cmd-Comma), laid out
 /// like the Mac's own apps: a toolbar of panes, the window titled after the
 /// open pane and sized to fit it, and the last pane remembered.
 ///
@@ -198,7 +198,7 @@ final class SettingsModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a profile exported from Cool Retro Term."
+        panel.message = "Choose a profile exported from Cool Retro Term SE."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try ProfileStore.shared.importProfile(from: url)

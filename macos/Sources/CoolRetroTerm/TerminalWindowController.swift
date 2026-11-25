@@ -41,7 +41,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
         let window = NSWindow(contentRect: frame,
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Cool Retro Term"
+        window.title = "Cool Retro Term SE"
         window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = .black
         window.titlebarAppearsTransparent = true

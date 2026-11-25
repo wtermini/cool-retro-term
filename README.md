@@ -25,9 +25,9 @@ If you want to get a hold of the latest version, just go to the Releases page an
 
 Alternatively, most distributions such as Ubuntu, Fedora or Arch already package cool-retro-term in their official repositories.
 
-## Native macOS app
+## Cool Retro Term SE (native macOS app)
 
-There is also a native macOS front end in [`macos/`](macos/README.md), built with AppKit, Metal and SwiftTerm. It shares the profiles and fonts with the Qt app, which is unchanged.
+There is also a native macOS edition, **Cool Retro Term SE**, in [`macos/`](macos/README.md), built with AppKit, Metal and SwiftTerm. It shares the profiles and fonts with the Qt app, which is unchanged.
 
 ## Building
 

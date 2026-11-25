@@ -34,7 +34,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     /// Title set by the program running in the terminal (the shell, or a tool
     /// such as Claude Code naming its session), and a name the user gave the
     /// tab, which takes precedence while set.
-    private(set) var programTitle = "Cool Retro Term"
+    private(set) var programTitle = "Cool Retro Term SE"
     private(set) var customTitle: String?
     var title: String { customTitle ?? programTitle }
 
@@ -203,7 +203,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
 
     nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         Task { @MainActor [weak self] in
-            self?.programTitle = title.isEmpty ? "Cool Retro Term" : title
+            self?.programTitle = title.isEmpty ? "Cool Retro Term SE" : title
             self?.onChange?()
         }
     }

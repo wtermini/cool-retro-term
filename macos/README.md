@@ -1,6 +1,7 @@
-# Cool Retro Term for macOS (native)
+# Cool Retro Term SE
 
-A native macOS front end for cool-retro-term, written in Swift with AppKit and
+The native macOS edition of [cool-retro-term](https://github.com/Swordfish90/cool-retro-term),
+written in Swift with AppKit and
 Metal. It lives alongside the Qt app, which is unchanged and still builds for
 Linux and macOS as before.
 
@@ -57,7 +58,7 @@ Requires macOS 13 or later and Xcode 16 or later (for Swift 6 and SwiftTerm).
 cd macos
 ./build-app.sh            # release build for this Mac's architecture
 ./build-app.sh --universal  # Apple silicon + Intel
-open "build/Cool Retro Term.app"
+open "build/Cool Retro Term SE.app"
 ```
 
 `build-app.sh` exports the profiles and font table from the Qt sources
@@ -75,17 +76,17 @@ or open `Package.swift` in Xcode.
 ### Downloading a CI build
 
 The **macOS native app** GitHub Actions workflow builds the app on every
-change under `macos/` and uploads it as the `Cool-Retro-Term-macOS` artifact,
+change under `macos/` and uploads it as the `Cool-Retro-Term-SE-macOS` artifact,
 along with screenshots of a few profiles. The download is signed ad hoc, not
 notarized, so macOS will refuse to open it the first time. After unzipping:
 
 ```sh
-xattr -dr com.apple.quarantine "Cool Retro Term.app"
+xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
 ```
 
 ## Using it
 
-- **Settings** (Cool Retro Term ▸ Settings…, Cmd-Comma, or right-click ▸
+- **Settings** (Cool Retro Term SE ▸ Settings…, Cmd-Comma, or right-click ▸
   Settings…) is a standard Mac settings window with five panes:
   - *General*: Option as Meta, the Shift-/Control-Return new line keys,
     Secure Keyboard Entry, tab bar and resize options, and the custom shell

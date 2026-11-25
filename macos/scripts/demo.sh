@@ -21,7 +21,7 @@
 # box drawing, colours and the symbols CLI tools such as Claude Code use.
 clear
 printf '\n'
-printf '  \033[38;5;173m▐▛███▜▌\033[0m   Cool Retro Term\n'
+printf '  \033[38;5;173m▐▛███▜▌\033[0m   Cool Retro Term SE\n'
 printf ' \033[38;5;173m▝▜█████▛▘\033[0m  native macOS build\n'
 printf '   \033[38;5;173m▘▘ ▝▝\033[0m\n\n'
 printf ' ⏺ Read 3 files\n'

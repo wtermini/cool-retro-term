@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Builds "Cool Retro Term.app", the native macOS front end, into macos/build/.
+# Builds "Cool Retro Term SE.app", the native macOS front end, into macos/build/.
 #
 # Usage: ./build-app.sh [--debug] [--universal]
 #   --debug      debug build instead of release
@@ -51,7 +51,7 @@ swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR=$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)
 
 VERSION=$(git -C "$REPO_DIR" describe --tags --always 2>/dev/null | sed 's/^v//' || echo 0.0.0)
-APP="$MACOS_DIR/build/Cool Retro Term.app"
+APP="$MACOS_DIR/build/Cool Retro Term SE.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/CoolRetroTerm" "$APP/Contents/MacOS/"

@@ -36,7 +36,7 @@ jobs:
       - name: Launch and take screenshots
         # Each launch runs under lldb, so a crash prints a backtrace.
         run: |
-          APP_BIN="macos/build/Cool Retro Term.app/Contents/MacOS/CoolRetroTerm"
+          APP_BIN="macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm"
           mkdir -p screenshots
           status=0
           for profile in "Monochrome Green" "Default Amber" "IBM VGA 8x16"; do
@@ -63,7 +63,7 @@ jobs:
       - name: Settings window screenshots
         if: always()
         run: |
-          APP_BIN="macos/build/Cool Retro Term.app/Contents/MacOS/CoolRetroTerm"
+          APP_BIN="macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm"
           [ -x "$APP_BIN" ] || exit 0
           CRT_SETTINGS_SNAPSHOT_DIR="$PWD/screenshots" "$APP_BIN" > screenshots/settings.log 2>&1 &
           pid=$!
@@ -89,15 +89,15 @@ jobs:
       - name: Package
         if: always()
         run: |
-          if [ -d "macos/build/Cool Retro Term.app" ]; then
-            ditto -c -k --keepParent "macos/build/Cool Retro Term.app" Cool-Retro-Term-macOS.zip
+          if [ -d "macos/build/Cool Retro Term SE.app" ]; then
+            ditto -c -k --keepParent "macos/build/Cool Retro Term SE.app" Cool-Retro-Term-SE-macOS.zip
           fi
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
-          name: Cool-Retro-Term-macOS
-          path: Cool-Retro-Term-macOS.zip
+          name: Cool-Retro-Term-SE-macOS
+          path: Cool-Retro-Term-SE-macOS.zip
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

@@ -232,12 +232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func showAbout(_ sender: Any?) {
         let credits = NSAttributedString(
             string: "A terminal emulator that mimics the look and feel of old cathode tube screens.\n\n"
-                + "Native macOS front end, built on SwiftTerm (MIT License).\n"
+                + "The native macOS edition of cool-retro-term by Filippo Scognamiglio, "
+                + "built on SwiftTerm (MIT License).\n"
                 + "Licensed under the GNU General Public License v3 or later.\n"
                 + "Bundled fonts are under their own licenses; see Help ▸ Licenses.",
             attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)])
         NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Cool Retro Term",
+            .applicationName: "Cool Retro Term SE",
             .credits: credits,
         ])
     }
@@ -278,7 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         menu.addItem(withTitle: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: "About Cool Retro Term", action: #selector(showAbout(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "About Cool Retro Term SE", action: #selector(showAbout(_:)), keyEquivalent: "")
         return menu
     }
 
@@ -287,8 +288,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private func buildMainMenu() -> NSMenu {
         let main = NSMenu()
 
-        let app = submenu(in: main, title: "Cool Retro Term")
-        app.addItem(item("About Cool Retro Term", #selector(showAbout(_:))))
+        let app = submenu(in: main, title: "Cool Retro Term SE")
+        app.addItem(item("About Cool Retro Term SE", #selector(showAbout(_:))))
         app.addItem(.separator())
         app.addItem(item("Settings…", #selector(showSettings(_:)), ","))
         app.addItem(.separator())
@@ -298,11 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         app.addItem(withTitle: "Services", action: nil, keyEquivalent: "").submenu = services
         NSApp.servicesMenu = services
         app.addItem(.separator())
-        app.addItem(item("Hide Cool Retro Term", #selector(NSApplication.hide(_:)), "h"))
+        app.addItem(item("Hide Cool Retro Term SE", #selector(NSApplication.hide(_:)), "h"))
         app.addItem(item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         app.addItem(item("Show All", #selector(NSApplication.unhideAllApplications(_:))))
         app.addItem(.separator())
-        app.addItem(item("Quit Cool Retro Term", #selector(NSApplication.terminate(_:)), "q"))
+        app.addItem(item("Quit Cool Retro Term SE", #selector(NSApplication.terminate(_:)), "q"))
 
         let shell = submenu(in: main, title: "Shell")
         shell.addItem(item("New Window", #selector(newWindow(_:)), "n"))

@@ -5,17 +5,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cool Retro Term</string>
+	<string>Cool Retro Term SE</string>
 	<key>CFBundleExecutable</key>
 	<string>CoolRetroTerm</string>
 	<key>CFBundleIconFile</key>
 	<string>crt</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.cool-retro-term.native</string>
+	<string>io.github.cool-retro-term.se</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Cool Retro Term</string>
+	<string>Cool Retro Term SE</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
