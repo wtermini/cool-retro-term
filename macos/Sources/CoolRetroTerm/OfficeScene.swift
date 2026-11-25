@@ -151,6 +151,13 @@ struct OfficeRoom: Decodable {
         var screen: [CGFloat]
         var monitor: [CGFloat]
     }
+    /// A smooth triangle mesh: x, y, z for each vertex, a normal for each, and
+    /// three indices per triangle (counter-clockwise from outside).
+    struct Mesh: Decodable {
+        var positions: [Float]
+        var normals: [Float]
+        var indices: [UInt32]
+    }
     struct Object: Decodable {
         var shape: String
         var position: [Float]
@@ -168,9 +175,11 @@ struct OfficeRoom: Decodable {
         var live: String?
         /// See-through (glass, water, bubbles), 0 to 1.
         var opacity: Float?
+        /// The triangles of a "mesh" object (the 70s terminal).
+        var mesh: Mesh?
 
         enum CodingKeys: String, CodingKey {
-            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive, group, live, opacity
+            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive, group, live, opacity, mesh
             case repeats = "repeat"
         }
     }
@@ -469,6 +478,27 @@ final class OfficeSceneView: SCNView {
         updateCamera()
     }
 
+    /// SceneKit geometry for a "mesh" object, or nil if its data doesn't add up.
+    private static func geometry(for mesh: OfficeRoom.Mesh) -> SCNGeometry? {
+        let count = mesh.positions.count / 3
+        guard count > 0, mesh.positions.count % 3 == 0, mesh.normals.count == mesh.positions.count,
+              !mesh.indices.isEmpty, mesh.indices.count % 3 == 0,
+              mesh.indices.allSatisfy({ Int($0) < count }) else { return nil }
+        let stride = MemoryLayout<Float>.size * 3
+        let vertices = SCNGeometrySource(data: mesh.positions.withUnsafeBufferPointer { Data(buffer: $0) },
+                                         semantic: .vertex, vectorCount: count, usesFloatComponents: true,
+                                         componentsPerVector: 3, bytesPerComponent: MemoryLayout<Float>.size,
+                                         dataOffset: 0, dataStride: stride)
+        let normals = SCNGeometrySource(data: mesh.normals.withUnsafeBufferPointer { Data(buffer: $0) },
+                                        semantic: .normal, vectorCount: count, usesFloatComponents: true,
+                                        componentsPerVector: 3, bytesPerComponent: MemoryLayout<Float>.size,
+                                        dataOffset: 0, dataStride: stride)
+        let element = SCNGeometryElement(data: mesh.indices.withUnsafeBufferPointer { Data(buffer: $0) },
+                                         primitiveType: .triangles, primitiveCount: mesh.indices.count / 3,
+                                         bytesPerIndex: MemoryLayout<UInt32>.size)
+        return SCNGeometry(sources: [vertices, normals], elements: [element])
+    }
+
     private func build(_ room: OfficeRoom) -> SCNScene {
         let scene = SCNScene()
         noteNodes = []
@@ -493,6 +523,9 @@ final class OfficeSceneView: SCNView {
                 let sphere = SCNSphere(radius: 0.5)
                 sphere.segmentCount = 32
                 geometry = sphere
+            case "mesh":
+                guard let mesh = object.mesh.flatMap(Self.geometry(for:)) else { continue }
+                geometry = mesh
             default: geometry = SCNPlane(width: 1, height: 1)
             }
             let material = SCNMaterial()

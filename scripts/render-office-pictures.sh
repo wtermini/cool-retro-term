@@ -1,7 +1,8 @@
 #!/bin/sh
 # Renders office mode's 2D fallback pictures (app/qml/office/office-*.jpg)
 # from the 3D rooms, seen straight on, with Qt Quick 3D.
-# Run scripts/generate-office-scenes.py first. Needs Qt 6 with Qt Quick 3D,
+# Run scripts/generate-office-scenes.py first. Needs Qt 6.6 or later with Qt
+# Quick 3D and its Helpers module (the 70s terminal is a ProceduralMesh),
 # Python with Pillow, and a display (or xvfb-run, used when there's none).
 set -e
 REPO=$(cd "$(dirname "$0")/.." && pwd)

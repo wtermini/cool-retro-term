@@ -327,6 +327,7 @@ Item {
             readonly property bool officeMode: ["70s", "80s", "90s", "2000s", "gloss"].indexOf(appSettings.officeScene) >= 0
             readonly property bool can3D: GraphicsInfo.api !== GraphicsInfo.Software
                                           && officeLoader.status !== Loader.Error
+                                          && !(officeLoader.item && !officeLoader.item.meshesSupported)
             readonly property bool office3D: officeMode && appSettings.office3D && can3D
             readonly property bool office2D: officeMode && !office3D
             // The monitor's screen shape: 4:3 or 16:10.

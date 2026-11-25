@@ -44,7 +44,12 @@ Scene format: units are centimetres, Y is up, and the camera starts out
 looking down -Z. Shapes are unit sized and scaled by "size": a box is
 1 x 1 x 1, a cylinder is 1 across and 1 high, a sphere is 1 across, and a
 "plane" is 1 x 1 in the XY plane, facing +Z. "rotation" is a quaternion
-[x, y, z, w]. "opacity" (0 to 1, when present) makes an object see-through.
+[x, y, z, w]. A "mesh" is a smooth triangle mesh carried in the object's
+"mesh": {"positions": [x, y, z, ...], "normals": [...], "indices": [...]},
+triangles counter-clockwise seen from outside, in centimetres, scaled by
+"size" (normally [1, 1, 1]); it's used for the 70s terminal, which has curves
+the simple shapes can't make. The Qt app draws it with ProceduralMesh (Qt
+6.6 or later). "opacity" (0 to 1, when present) makes an object see-through.
 The object with "live": "calendar" is the wall calendar, which the apps
 draw from the desk data (office-desk.json) instead of its texture, which is
 kept for the 2D pictures. "noteSpots" are the places for sticky notes, in
@@ -119,7 +124,7 @@ class Scene:
 
     def add(self, shape, position, size, color="#808080", rotation=(0, 0, 0), texture=None,
             repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True, group=None,
-            live=None, opacity=None):
+            live=None, opacity=None, mesh=None):
         obj = {"shape": shape,
                "position": [round(float(v), 3) for v in position],
                "size": [round(float(v), 3) for v in size],
@@ -139,6 +144,8 @@ class Scene:
             obj["group"] = group   # e.g. "sticky-notes", which can be turned off
         if live:
             obj["live"] = live     # drawn by the app from the desk data; see below
+        if mesh:
+            obj["mesh"] = mesh.to_json()
         self.objects.append(obj)
         return obj
 
@@ -587,6 +594,99 @@ def keyboard_terminal():
     return img
 
 
+class Mesh:
+    """A triangle mesh with a normal at each vertex, for the "mesh" shape."""
+
+    def __init__(self):
+        self.positions = []
+        self.normals = []
+        self.indices = []
+
+    def vertex(self, position, normal):
+        n = np.array(normal, dtype=float)
+        length = np.linalg.norm(n)
+        self.positions.append(tuple(float(v) for v in position))
+        self.normals.append(tuple(float(v) for v in (n / length if length > 0 else n)))
+        return len(self.positions) - 1
+
+    def triangle(self, a, b, c):
+        """Adds a triangle, turned to face the way its vertices' normals point."""
+        pa, pb, pc = (np.array(self.positions[i]) for i in (a, b, c))
+        facing = np.cross(pb - pa, pc - pa)
+        if np.linalg.norm(facing) < 1e-9:
+            return
+        if np.dot(facing, np.add(np.add(self.normals[a], self.normals[b]), self.normals[c])) < 0:
+            b, c = c, b
+        self.indices += [a, b, c]
+
+    def quad(self, a, b, c, d):
+        self.triangle(a, b, c)
+        self.triangle(a, c, d)
+
+    def smooth(self):
+        """Sets each normal to the average of its triangles' (for surfaces
+        built without them)."""
+        acc = np.zeros((len(self.positions), 3))
+        pos = np.array(self.positions)
+        for i in range(0, len(self.indices), 3):
+            a, b, c = self.indices[i:i + 3]
+            n = np.cross(pos[b] - pos[a], pos[c] - pos[a])
+            acc[[a, b, c]] += n
+        lengths = np.linalg.norm(acc, axis=1)
+        lengths[lengths == 0] = 1
+        self.normals = [tuple(v) for v in acc / lengths[:, None]]
+
+    def to_json(self):
+        return {"positions": [round(v, 3) for p in self.positions for v in p],
+                "normals": [round(v, 4) for n in self.normals for v in n],
+                "indices": list(self.indices)}
+
+
+def triangulate(polygon):
+    """Ear-clips a simple polygon given as (u, v) points. Returns index triples."""
+    idx = list(range(len(polygon)))
+    area = sum(polygon[i][0] * polygon[(i + 1) % len(polygon)][1] - polygon[(i + 1) % len(polygon)][0] * polygon[i][1]
+               for i in range(len(polygon)))
+    if area < 0:
+        idx.reverse()
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    triangles = []
+    guard = 0
+    while len(idx) > 3 and guard < 10000:
+        guard += 1
+        for k in range(len(idx)):
+            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
+            a, b, c = polygon[i0], polygon[i1], polygon[i2]
+            if cross(a, b, c) <= 1e-9:
+                continue
+            if any(cross(a, b, polygon[j]) > 0 and cross(b, c, polygon[j]) > 0 and cross(c, a, polygon[j]) > 0
+                   for j in idx if j not in (i0, i1, i2)):
+                continue
+            triangles.append((i0, i1, i2))
+            del idx[k]
+            break
+        else:
+            break
+    if len(idx) == 3:
+        triangles.append(tuple(idx))
+    return triangles
+
+
+def rounded_rect_point(half_w, half_h, radius, angle):
+    """Where a ray from the middle of a rounded rectangle, at `angle`, meets its edge."""
+    dx, dy = math.cos(angle), math.sin(angle)
+    lo, hi = 0.0, 2 * (half_w + half_h)
+    for _ in range(50):
+        r = (lo + hi) / 2
+        qx, qy = abs(dx * r) - (half_w - radius), abs(dy * r) - (half_h - radius)
+        outside = math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - radius
+        lo, hi = (r, hi) if outside < 0 else (lo, r)
+    return dx * lo, dy * lo
+
+
 def rounded_outline(corners):
     """A closed outline in the (z, y) plane with rounded corners: `corners`
     is a list of ((z, y), radius). Returns the points along it, with each
@@ -622,16 +722,19 @@ def rounded_outline(corners):
 
 
 def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
-    """The terminal, screen facing +Z and leaning back with the face. Its
-    side outline is a rounded polygon (a cut-away back, a flat top rolling
-    over into the leaning face, which curves into a low keyboard deck with a
-    rounded lip); the shell follows it in thin strips and the sides are
-    filled in under it. The screen sits in a flared surround in the face."""
+    """The terminal, screen facing +Z and leaning back with the face, as a
+    smooth mesh. Its side outline is a rounded polygon (a cut-away back, a
+    flat top rolling over into the leaning face, which curves into a low
+    keyboard deck with a rounded lip), drawn out across the terminal's width
+    with rounded edges; the face has an opening with rounded corners, and a
+    surround flares in from it to the screen."""
     sy, sz = mon.y, mon.z
     W = mon.w + 2 * TERM_SIDE
     B, D = TERM_BEVEL, TERM_DEPTH
     frame = terminal_frame(TERM_TILT)
     lean = quat(-TERM_TILT)
+    cos_t, sin_t = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
+    face_normal = (0.0, sin_t, cos_t)
 
     def at(x, v, d):                   # a point in the face's frame, in the room
         dy, dz = frame(v, d)
@@ -641,117 +744,147 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
         return qmul(lean, quat(*rotation))
 
     def depth_of(z, y):                # how far a point is out of the screen's plane
-        c, s = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
-        return (y - sy) * s + (z - sz) * c
+        return (y - sy) * sin_t + (z - sz) * cos_t
 
     def height_of(z, y):               # how far up the face a point is
-        c, s = math.cos(math.radians(TERM_TILT)), math.sin(math.radians(TERM_TILT))
-        return (y - sy) * c - (z - sz) * s
+        return (y - sy) * cos_t - (z - sz) * sin_t
 
     lid = mon.top
     back = sz - 36
-    v_open = mon.h / 2 + B                       # the surround's outer edge, up and down
+    v_open = mon.h / 2 + B                       # the opening's edge, up and down
     _, face_top_y, face_top_z = at(0, v_open + TERM_ABOVE, D)
     _, face_bottom_y, face_bottom_z = at(0, -(v_open + TERM_BELOW), D)
     front = face_bottom_z + TERM_DECK
     deck_slope = math.radians(TERM_DECK_SLOPE)
-    corners = [
-        ((back + 10, DESK_Y), 0),
-        ((back, DESK_Y + 14), 2),
-        ((back, lid), 3),
-        ((face_top_z, face_top_y), 4),
-        ((face_bottom_z, face_bottom_y), 6),
-        ((front, DESK_Y + TERM_LIP), 2),
-        ((front, DESK_Y), 0),
-    ]
-    outline = rounded_outline(corners)
-    soft = dict(roughness=0.5, shadows=False)
+    outline = rounded_outline([
+        ((back + 10, DESK_Y), 1.5),
+        ((back, DESK_Y + 14), 3),
+        ((back, lid), 4),
+        ((face_top_z, face_top_y), 5),
+        ((face_bottom_z, face_bottom_y), 7),
+        ((front, DESK_Y + TERM_LIP), 2.2),
+        ((front, DESK_Y), 1.5),
+    ])
+    # Drop points that repeat (where an arc ends where the next begins).
+    points = []
+    for q in outline:
+        if not points or math.hypot(q[0] - points[-1][0], q[1] - points[-1][1]) > 1e-4:
+            points.append(q)
+    if math.hypot(points[0][0] - points[-1][0], points[0][1] - points[-1][1]) < 1e-4:
+        points.pop()
+    n = len(points)
 
-    # The shell: a thin full-width strip along each piece of the outline,
-    # except the face's straight run, which has the surround in it.
+    # The outward normal at each point of the outline, in (z, y).
+    normals = []
+    for i in range(n):
+        (z0, y0), (z1, y1) = points[i - 1], points[(i + 1) % n]
+        dz, dy = z1 - z0, y1 - y0
+        length = math.hypot(dz, dy)
+        normals.append((-dy / length, dz / length))
+    # On a straight run the ends' normals are the run's own, so it stays flat.
     face_run = None
-    for (z0, y0), (z1, y1) in zip(outline, outline[1:]):
+    for i in range(n):
+        j = (i + 1) % n
+        (z0, y0), (z1, y1) = points[i], points[j]
         if abs(depth_of(z0, y0) - D) < 1e-3 and abs(depth_of(z1, y1) - D) < 1e-3 and y0 - y1 > 10:
-            face_run = (height_of(z0, y0), height_of(z1, y1))
-            continue
-        length = math.hypot(z1 - z0, y1 - y0)
-        if length < 1e-3:
-            continue
-        nz, ny = (y1 - y0) / length, -(z1 - z0) / length     # inward
-        angle = math.degrees(math.atan2(z1 - z0, y1 - y0))
-        th = 0.8
-        sc.box((0, (y0 + y1) / 2 + ny * th / 2, (z0 + z1) / 2 + nz * th / 2), (W, length + 0.15, th), shell,
-               rotation=(angle, 0, 0), **soft)
-        band = 3.0                     # the sides, just inside the outline...
+            face_run = i
+
+    edge = 1.5                         # radius of the rounded edges at the sides
+    core = W / 2 - edge
+    shell_mesh = Mesh()
+    # Round the sides: for each outline point, a quarter circle at each side.
+    steps = 5
+    rows = []
+    for i, ((z, y), (nz, ny)) in enumerate(zip(points, normals)):
+        row = []
         for sign in (-1, 1):
-            sc.box((sign * (W / 2 - 0.2), (y0 + y1) / 2 + ny * band / 2, (z0 + z1) / 2 + nz * band / 2),
-                   (0.4, length + 0.15, band), shell, rotation=(angle, 0, 0), **soft)
-    face_top_v, face_bottom_v = face_run
-    # ...and the rest of the sides, in horizontal strips.
-    closed = outline + [outline[0]]
+            arc = range(steps + 1) if sign < 0 else range(steps, -1, -1)
+            for k in arc:
+                a = math.pi / 2 * (1 - k / steps)          # 90 degrees at the side, 0 on top
+                x = sign * (core + edge * math.sin(a))
+                off = edge * (math.cos(a) - 1)
+                row.append(shell_mesh.vertex((x, y + ny * off, z + nz * off),
+                                             (sign * math.sin(a), ny * math.cos(a), nz * math.cos(a))))
+        rows.append(row)
+    width = len(rows[0])
+    for i in range(n):
+        j = (i + 1) % n
+        for k in range(width - 1):
+            if i == face_run and k == steps:   # the flat middle of the face: the opening goes there
+                continue
+            shell_mesh.quad(rows[i][k], rows[i][k + 1], rows[j][k + 1], rows[j][k])
+    # The flat sides.
+    inset = [(z - nz * edge, y - ny * edge) for (z, y), (nz, ny) in zip(points, normals)]
+    for sign in (-1, 1):
+        ids = [shell_mesh.vertex((sign * W / 2, y, z), (sign, 0, 0)) for z, y in inset]
+        for a, b, c in triangulate(inset):
+            shell_mesh.triangle(ids[a], ids[b], ids[c])
 
-    def span(y):
-        zs = [z0 + (y - y0) / (y1 - y0) * (z1 - z0)
-              for (z0, y0), (z1, y1) in zip(closed, closed[1:]) if (y0 - y) * (y1 - y) <= 0 and y0 != y1]
-        return (min(zs), max(zs)) if len(zs) >= 2 else None
+    # The face round the opening, between the flat middle's edges and the
+    # opening (a rounded rectangle), joined along rays from the screen's middle.
+    (za, ya), (zb, yb) = points[face_run], points[(face_run + 1) % n]
+    va, vb = height_of(za, ya), height_of(zb, yb)
+    open_w, open_h, open_r = mon.w / 2 + B, mon.h / 2 + B, 4.0
+    scr_w, scr_h, scr_r = mon.w / 2 - 0.2, mon.h / 2 - 0.2, 2.5
 
-    y = DESK_Y
-    while y < lid - 0.5:
-        y1 = min(y + 2.0, lid - 0.5)
-        a, b = span(y + 0.01), span(y1 - 0.01)
-        if a and b and min(a[1], b[1]) > max(a[0], b[0]):
-            z0, z1 = max(a[0], b[0]), min(a[1], b[1])
-            for sign in (-1, 1):
-                sc.box((sign * (W / 2 - 0.2), (y + y1) / 2, (z0 + z1) / 2), (0.4, y1 - y, z1 - z0), shell, **soft)
-        y = y1
-    # The inside: dark, and it casts the terminal's shadow (shadows on the
-    # thin shell pieces come out speckled, so they cast none).
-    inside_front = sz - mon.h / 2 * math.sin(math.radians(TERM_TILT)) - 2
-    sc.box((0, (DESK_Y + 14 + lid - 2) / 2, (back + 1 + inside_front) / 2), (W - 1, lid - 2 - DESK_Y - 14, inside_front - back - 1),
-           "#2a2a28")
-    sc.box((0, DESK_Y + 7.5, (back + 11 + inside_front) / 2), (W - 1, 13, inside_front - back - 11), "#2a2a28")
+    def to_rect(angle):
+        dx, dv = math.cos(angle), math.sin(angle)
+        r = core / abs(dx) if abs(dx) > 1e-9 else float("inf")
+        if dv > 1e-9:
+            r = min(r, va / dv)
+        elif dv < -1e-9:
+            r = min(r, vb / dv)
+        return dx * r, dv * r
+
+    angles = [2 * math.pi * k / 240 for k in range(240)]
+    angles += [math.atan2(v, x) % (2 * math.pi) for x in (-core, core) for v in (va, vb)]
+    angles = sorted(set(round(a, 9) for a in angles))
+    outer = [shell_mesh.vertex(at(*to_rect(a), D), face_normal) for a in angles]
+    inner = [shell_mesh.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a), D), face_normal) for a in angles]
+    for k in range(len(angles)):
+        m = (k + 1) % len(angles)
+        shell_mesh.quad(outer[k], outer[m], inner[m], inner[k])
+    # The mesh doesn't cast shadows (on itself they come out streaky); a dark
+    # block hidden inside it casts the terminal's shadow instead.
+    sc.add("mesh", (0, 0, 0), (1, 1, 1), shell, mesh=shell_mesh, roughness=0.5, shadows=False)
+    inside_front = sz - mon.h / 2 * sin_t - 3
+    sc.box((0, (DESK_Y + 15 + lid - 3) / 2, (back + 2 + inside_front) / 2),
+           (W - 4, lid - 3 - DESK_Y - 15, inside_front - back - 2), "#2a2a28")
+    sc.box((0, DESK_Y + 8, (back + 13 + inside_front) / 2), (W - 4, 12, inside_front - back - 13), "#2a2a28")
+
+    # The surround, flaring from the opening in to the screen.
+    surround = Mesh()
+    ring_out = [surround.vertex(at(*rounded_rect_point(open_w, open_h, open_r, a), D), face_normal) for a in angles]
+    ring_in = [surround.vertex(at(*rounded_rect_point(scr_w, scr_h, scr_r, a), 0.05), face_normal) for a in angles]
+    for k in range(len(angles)):
+        m = (k + 1) % len(angles)
+        surround.quad(ring_out[k], ring_out[m], ring_in[m], ring_in[k])
+    surround.smooth()
+    # Normals point into the opening; the surround faces out of it.
+    surround.normals = [tuple(-v for v in nrm) if np.dot(nrm, face_normal) < 0 else nrm for nrm in surround.normals]
+    surround.indices = []
+    for k in range(len(angles)):
+        m = (k + 1) % len(angles)
+        surround.quad(ring_out[k], ring_out[m], ring_in[m], ring_in[k])
+    sc.add("mesh", (0, 0, 0), (1, 1, 1), recess, mesh=surround, roughness=0.55, emissive="#3c3a34", shadows=False)
+    sc.box(at(0, 0, -0.5), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", rotation=lean, roughness=0.3)
 
     # Vents on the top, in two groups of slots.
     for group in (-1, 1):
         for row in range(5):
             for col in range(4):
-                sc.box((group * (W / 4 + 1) + (col - 1.5) * W / 9, lid + 0.02, face_top_z - 9 - row * 3.2),
+                sc.box((group * (W / 4 + 1) + (col - 1.5) * W / 9, lid + 0.02, face_top_z - 10 - row * 3.2),
                        (W / 10, 0.06, 1.0), "#6a6862", shadows=False)
 
-    # The face, in panels round the surround.
-    t = 1.0
-    side_w = W / 2 - mon.w / 2 - B
-
-    def face_panel(x, v0, v1, width):
-        sc.box(at(x, (v0 + v1) / 2, D - t / 2), (width, v1 - v0, t), shell, rotation=lean, **soft)
-
-    face_panel(0, v_open, face_top_v + 0.1, W)
-    face_panel(0, face_bottom_v - 0.1, -v_open, W)
-    for sign in (-1, 1):
-        face_panel(sign * (W / 2 - side_w / 2), -v_open, v_open, side_w)
-
-    # The surround, flaring out from the screen to the face, with the
-    # screen's corners rounded off.
-    L = math.hypot(B, D)
-    a = math.degrees(math.atan2(D, B))
-    walls = dict(roughness=0.55, shadows=False, emissive="#3c3a34")   # a little light in the shade
-    sc.box(at(0, mon.h / 2 + B / 2, D / 2), (mon.w + 2 * B, L, 0.4), recess, rotation=in_face((a, 0, 0)), **walls)
-    sc.box(at(0, -mon.h / 2 - B / 2, D / 2), (mon.w + 2 * B, L, 0.4), recess, rotation=in_face((-a, 0, 0)), **walls)
-    sc.box(at(-mon.w / 2 - B / 2, 0, D / 2), (L, mon.h + B, 0.4), recess, rotation=in_face((0, a, 0)), **walls)
-    sc.box(at(mon.w / 2 + B / 2, 0, D / 2), (L, mon.h + B, 0.4), recess, rotation=in_face((0, -a, 0)), **walls)
-    for sx in (-1, 1):
-        for sv in (-1, 1):
-            sc.box(at(sx * mon.w / 2, sv * mon.h / 2, 0.12), (2.2, 2.2, 0.2), recess, rotation=in_face((0, 0, 45)), **walls)
-    sc.box(at(0, 0, -0.5), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", rotation=lean, roughness=0.3)
-
     # The keys, on the deck.
-    k_back, k_front = face_bottom_z + 3.5, front - 2.5
+    k_back, k_front = face_bottom_z + 4, front - 3
     zc = (k_back + k_front) / 2
     deck_y = DESK_Y + TERM_LIP + (front - zc) * math.tan(deck_slope)
-    sc.plane((0, deck_y + 0.05, zc), W - 5, (k_front - k_back) / math.cos(deck_slope),
+    sc.plane((0, deck_y + 0.05, zc), W - 6, (k_front - k_back) / math.cos(deck_slope),
              rotation=(-90 + TERM_DECK_SLOPE, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
 
     # A small badge under the screen, and the power lamp.
+    side_w = W / 2 - mon.w / 2 - B
     v_badge = -v_open - 3
     sc.box(at(0, v_badge, D + 0.1), (7, 1.8, 0.2), "#3a3e5a", rotation=lean)
     sc.sphere(at(W / 2 - side_w / 2, v_badge, D + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)

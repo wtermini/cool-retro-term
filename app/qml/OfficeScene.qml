@@ -41,6 +41,10 @@ View3D {
     property string monitor: "wide"
     /// The screen's width over its height, for laying out the terminal.
     readonly property real screenAspect: room.screen ? room.screen.size[0] / room.screen.size[1] : 4 / 3
+    // False if the room has a smooth mesh (the 70s terminal) and this Qt
+    // can't draw one (ProceduralMesh needs Qt 6.6); the picture is shown instead.
+    property bool meshFailed: false
+    readonly property bool meshesSupported: !meshFailed || !(room.objects || []).some(o => o.shape === "mesh")
     /// The item shown on the monitor's screen (the terminal).
     property Item screenItem
     /// Seconds, for the gentle camera drift.
@@ -163,6 +167,31 @@ View3D {
     Component.onCompleted: load()
 
     function vec(a) { return Qt.vector3d(a[0], a[1], a[2]) }
+    // A "mesh" object's geometry. Created by name, so this file still loads
+    // where QtQuick3D.Helpers (or ProceduralMesh in it) isn't available.
+    function makeMesh(data, parent) {
+        if (!data || !data.positions || !data.normals || !data.indices
+                || data.positions.length % 3 !== 0 || data.normals.length !== data.positions.length)
+            return null
+        let mesh
+        try {
+            mesh = Qt.createQmlObject("import QtQuick3D.Helpers; ProceduralMesh {}", parent, "OfficeMesh")
+        } catch (error) {
+            console.warn("Office mode: can't draw smooth meshes with this Qt (needs 6.6), showing the picture instead.")
+            meshFailed = true
+            return null
+        }
+        const count = data.positions.length / 3
+        let positions = [], normals = []
+        for (let i = 0; i < count; ++i) {
+            positions.push(Qt.vector3d(data.positions[3 * i], data.positions[3 * i + 1], data.positions[3 * i + 2]))
+            normals.push(Qt.vector3d(data.normals[3 * i], data.normals[3 * i + 1], data.normals[3 * i + 2]))
+        }
+        mesh.positions = positions
+        mesh.normals = normals
+        mesh.indexes = data.indices.filter(i => Number.isInteger(i) && i >= 0 && i < count)
+        return mesh
+    }
     function quat(a) { return Qt.quaternion(a[3], a[0], a[1], a[2]) }
 
     // Quaternion product a * b, as [x, y, z, w].
@@ -270,10 +299,13 @@ View3D {
             readonly property Item liveFace: view.deskLive && live === "calendar" ? view.calendarFace : null
             readonly property var shapes: ({ "box": "#Cube", "cylinder": "#Cylinder",
                                              "sphere": "#Sphere", "plane": "#Rectangle" })
-            source: shapes[modelData.shape]
+            readonly property bool isMesh: modelData.shape === "mesh"
+            source: isMesh ? "" : shapes[modelData.shape]
+            geometry: isMesh ? view.makeMesh(modelData.mesh, object) : null
             position: view.vec(modelData.position)
-            // The built-in meshes are 100 units across.
-            scale: Qt.vector3d(modelData.size[0] / 100, modelData.size[1] / 100, modelData.size[2] / 100)
+            // The built-in meshes are 100 units across; a "mesh" is in centimetres.
+            readonly property real unit: isMesh ? 1 : 100
+            scale: Qt.vector3d(modelData.size[0] / unit, modelData.size[1] / unit, modelData.size[2] / unit)
             rotation: view.quat(modelData.rotation)
             castsShadows: modelData.shadows
             receivesShadows: true
@@ -372,6 +404,8 @@ View3D {
                                   rotation: spots[i].rotation, live: "note:" + deskNotes[i].id })
         }
         for (const o of candidates) {
+            if (o.shape === "mesh")
+                continue
             // The ray in the object's own unit space: a 1 x 1 square at z = 0
             // for a plane, a 1 x 1 x 1 box for anything else.
             const inverse = quat(o.rotation).inverted()
