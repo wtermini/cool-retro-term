@@ -31,6 +31,7 @@ Window {
     // [room, monitor, sticky notes]
     readonly property var scenes: [["80s", "standard", true], ["80s", "wide", true],
                                    ["90s", "standard", true], ["90s", "wide", true],
+                                   ["80s", "standard", false], ["80s", "wide", false],
                                    ["90s", "standard", false], ["90s", "wide", false]]
     property int index: 0
     readonly property string outDir: Qt.application.arguments[Qt.application.arguments.length - 1]

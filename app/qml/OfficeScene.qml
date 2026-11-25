@@ -50,6 +50,29 @@ View3D {
     property bool lookAround: true
     /// Show the sticky notes.
     property bool stickyNotes: true
+    /// The desk (officeDesk.notes and officeDesk.events). When set, the
+    /// sticky notes and the calendar show them; otherwise their pictures.
+    property var deskNotes
+    property var deskEvents: []
+    readonly property bool deskLive: deskNotes !== undefined && deskNotes !== null
+    /// Double-clicking a note ("note:monitor", "note:side", "note:wall") or
+    /// the calendar ("calendar") in the room.
+    signal editRequested(string what)
+
+    function noteText(slot) { return deskLive && deskNotes[slot] ? deskNotes[slot].text : "" }
+    function notePaper(slot) { return deskLive && deskNotes[slot] ? deskNotes[slot].color : "yellow" }
+    property Item noteMonitorFace: StickyNoteFace {
+        text: view.noteText("monitor"); paper: view.notePaper("monitor")
+    }
+    property Item noteSideFace: StickyNoteFace {
+        text: view.noteText("side"); paper: view.notePaper("side")
+    }
+    property Item noteWallFace: StickyNoteFace {
+        text: view.noteText("wall"); paper: view.notePaper("wall")
+    }
+    property Item calendarFace: CalendarFace {
+        events: view.deskEvents || []
+    }
     /// How far back the camera starts: "close" (the screen fills most of the
     /// window), "desk" or "room".
     property string zoom: "desk"
@@ -204,6 +227,13 @@ View3D {
             id: object
             required property var modelData
             visible: modelData.group !== "sticky-notes" || view.stickyNotes
+            // Notes and the calendar show the desk's contents.
+            readonly property string live: modelData.live || ""
+            readonly property Item liveFace: !view.deskLive ? null
+                : live === "calendar" ? view.calendarFace
+                : live === "note:monitor" ? view.noteMonitorFace
+                : live === "note:side" ? view.noteSideFace
+                : live === "note:wall" ? view.noteWallFace : null
             readonly property var shapes: ({ "box": "#Cube", "cylinder": "#Cylinder",
                                              "sphere": "#Sphere", "plane": "#Rectangle" })
             source: shapes[modelData.shape]
@@ -217,12 +247,16 @@ View3D {
                 baseColor: object.modelData.color
                 roughness: object.modelData.roughness
                 metalness: object.modelData.metalness
-                baseColorMap: object.modelData.texture ? texture : null
+                baseColorMap: object.liveFace ? liveTexture : object.modelData.texture ? texture : null
                 emissiveMap: object.modelData.emissive && object.modelData.texture ? texture : null
                 emissiveFactor: object.modelData.emissive
                                 ? Qt.vector3d(Qt.color(object.modelData.emissive).r, Qt.color(object.modelData.emissive).g,
                                               Qt.color(object.modelData.emissive).b)
                                 : Qt.vector3d(0, 0, 0)
+                Texture {
+                    id: liveTexture
+                    sourceItem: object.liveFace
+                }
                 Texture {
                     id: texture
                     source: object.modelData.texture ? "office/" + object.modelData.texture : ""
@@ -251,6 +285,68 @@ View3D {
         materials: DefaultMaterial {
             lighting: DefaultMaterial.NoLighting
             diffuseMap: Texture { sourceItem: view.screenItem }
+        }
+    }
+
+    /// The note or calendar ("note:monitor", "calendar"...) under a point
+    /// in the view, if it's the nearest thing there, or "". Worked out here
+    /// rather than with pick(), so that clicks on the room's objects aren't
+    /// taken by the view and still reach the double-click handler below.
+    function liveObjectAt(x, y) {
+        if (!room.objects)
+            return ""
+        const p0 = camera.mapFromViewport(Qt.vector3d(x / width, y / height, 0))
+        const p1 = camera.mapFromViewport(Qt.vector3d(x / width, y / height, 100))
+        let found = "", nearest = Infinity
+        const candidates = room.objects.concat(room.screen ? [{ shape: "plane", position: room.screen.position,
+            size: [room.screen.size[0], room.screen.size[1], 1], rotation: room.screen.rotation }] : [])
+        for (const o of candidates) {
+            if (o.group === "sticky-notes" && !stickyNotes)
+                continue
+            // The ray in the object's own unit space: a 1 x 1 square at z = 0
+            // for a plane, a 1 x 1 x 1 box for anything else.
+            const inverse = quat(o.rotation).inverted()
+            const a = inverse.times(p0.minus(vec(o.position)))
+            const b = inverse.times(p1.minus(vec(o.position)))
+            const o0 = [a.x / o.size[0], a.y / o.size[1], a.z / o.size[2]]
+            const d = [(b.x - a.x) / o.size[0], (b.y - a.y) / o.size[1], (b.z - a.z) / o.size[2]]
+            let t
+            if (o.shape === "plane") {
+                if (Math.abs(b.z - a.z) < 1e-9)
+                    continue
+                t = -a.z / (b.z - a.z)
+                if (Math.abs(o0[0] + d[0] * t) > 0.5 || Math.abs(o0[1] + d[1] * t) > 0.5)
+                    continue
+            } else {
+                let enter = -Infinity, leave = Infinity
+                for (let i = 0; i < 3; ++i) {
+                    if (Math.abs(d[i]) < 1e-12) {
+                        if (Math.abs(o0[i]) > 0.5) { enter = Infinity; break }
+                        continue
+                    }
+                    const t1 = (-0.5 - o0[i]) / d[i], t2 = (0.5 - o0[i]) / d[i]
+                    enter = Math.max(enter, Math.min(t1, t2))
+                    leave = Math.min(leave, Math.max(t1, t2))
+                }
+                if (enter > leave || leave < 0)
+                    continue
+                t = Math.max(enter, 0)
+            }
+            if (t >= 0 && t < nearest) {
+                nearest = t
+                found = o.live || ""
+            }
+        }
+        return found
+    }
+
+    // Double-click a sticky note or the calendar to edit it.
+    TapHandler {
+        acceptedModifiers: Qt.NoModifier
+        onDoubleTapped: (eventPoint) => {
+            const what = view.liveObjectAt(eventPoint.position.x, eventPoint.position.y)
+            if (what)
+                view.editRequested(what)
         }
     }
 

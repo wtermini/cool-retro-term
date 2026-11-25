@@ -52,6 +52,23 @@ jobs:
           grep -q "drawBlockChar" qmltermwidget/lib/TerminalDisplay.cpp
           grep -q "tabColorRequested" qmltermwidget/lib/ksession.h
 
+      - name: Check the office desk MCP server
+        run: |
+          export XDG_DATA_HOME="$RUNNER_TEMP/desk"
+          out=$(printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"set_sticky_note","arguments":{"note":"monitor","text":"Hello from CI"}}}' \
+            '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"add_calendar_event","arguments":{"date":"2030-01-02","title":"CI check"}}}' \
+            '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"add_calendar_event","arguments":{"date":"2030-02-30","title":"invalid"}}}' \
+            | build/appimage/cool-retro-term --mcp)
+          echo "$out"
+          echo "$out" | grep -q '"Note updated."'
+          echo "$out" | grep -q 'CI check'
+          echo "$out" | grep -q '"isError":true'
+          grep -q "Hello from CI" "$XDG_DATA_HOME/cool-retro-term/cool-retro-term/office-desk.json"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: cool-retro-term-qt-appimage

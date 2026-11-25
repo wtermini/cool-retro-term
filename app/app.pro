@@ -20,12 +20,14 @@ DESTDIR = $$OUT_PWD/../
 HEADERS += \
     fileio.h \
     secureinput.h \
+    officedesk.h \
     fontmanager.h \
     fontlistmodel.h
 
 SOURCES += main.cpp \
     fileio.cpp \
     secureinput.cpp \
+    officedesk.cpp \
     fontmanager.cpp \
     fontlistmodel.cpp
 

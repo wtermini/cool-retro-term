@@ -97,6 +97,9 @@ MenuBar {
             MenuItem { text: qsTr("Sticky Notes"); checkable: true; checked: appSettings.officeStickyNotes; onTriggered: appSettings.officeStickyNotes = checked }
             MenuItem { text: qsTr("3D Room"); checkable: true; checked: appSettings.office3D; onTriggered: appSettings.office3D = checked }
             MenuItem { text: qsTr("Look Around"); checkable: true; enabled: appSettings.office3D; checked: appSettings.officeLookAround; onTriggered: appSettings.officeLookAround = checked }
+            MenuSeparator { }
+            MenuItem { text: qsTr("Edit Notes and Calendar…"); onTriggered: officeDeskWindow.openAt("") }
+            MenuItem { text: qsTr("Copy Agent (MCP) Setup Command"); onTriggered: officeDesk.copyToClipboard(officeDesk.mcpCommand) }
             MenuItem { text: qsTr("Reset View"); enabled: appSettings.officeScene !== "" && appSettings.office3D; onTriggered: terminalTabs.resetOfficeView() }
         }
     }

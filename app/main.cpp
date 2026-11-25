@@ -20,6 +20,7 @@
 
 #include <fileio.h>
 #include <secureinput.h>
+#include <officedesk.h>
 #include <fontlistmodel.h>
 #include <fontmanager.h>
 
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
         cout << "  -p|--profile <prof> Run cool-retro-term with the given profile." << Qt::endl;
         cout << "  -h|--help           Print this help." << Qt::endl;
         cout << "  --verbose           Print additional information such as profiles and settings." << Qt::endl;
+        cout << "  --mcp               Run the office desk MCP server on stdin/stdout (for agents), not the terminal." << Qt::endl;
         return 0;
     }
 
@@ -82,6 +84,14 @@ int main(int argc, char *argv[])
         QTextStream cout(stdout, QIODevice::WriteOnly);
         cout << "cool-retro-term " << appVersion << Qt::endl;
         return 0;
+    }
+
+    // The office desk's MCP server, started by an agent: no windows.
+    if (argc > 1 && !strcmp(argv[1], "--mcp")) {
+        QCoreApplication mcpApp(argc, argv);
+        mcpApp.setApplicationName(QStringLiteral("cool-retro-term"));
+        mcpApp.setOrganizationName(QStringLiteral("cool-retro-term"));
+        return OfficeDesk::runMcpServer();
     }
 
     QApplication app(argc, argv);
@@ -132,6 +142,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("workdir", getNamedArgument(args, "--workdir", QDir::currentPath()));
     engine.rootContext()->setContextProperty("fileIO", &fileIO);
     engine.rootContext()->setContextProperty("secureInput", &secureInput);
+    OfficeDesk officeDesk;
+    engine.rootContext()->setContextProperty("officeDesk", &officeDesk);
 
     // Manage import paths for Linux and OSX.
     QStringList importPathList = engine.importPathList();

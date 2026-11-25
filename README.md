@@ -29,6 +29,37 @@ Alternatively, most distributions such as Ubuntu, Fedora or Arch already package
 
 View ▸ Office Mode puts the terminal on the screen of a CRT monitor in a 3D room, an **80s Den** or a **90s Cubicle**, on a widescreen (16:10) or standard (4:3) CRT, drawn on the GPU (Qt Quick 3D on OpenGL or Metal here, SceneKit on Metal in Cool Retro Term SE). Pick the view (close up, at the desk or the whole room) and turn the sticky notes on or off in the same menu. With **Look Around** on, Option/Alt-drag looks around, Option/Alt-scroll zooms and Option/Alt-double-click goes back to the desk. Turn off **3D Room**, or run without Qt Quick 3D or a GPU, and you get a picture of the same room instead. The rooms are original, built by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py) (the pictures are rendered from them by `scripts/render-office-pictures.sh`), and the settings are shared between the two apps.
 
+## The office desk: sticky notes, calendar and an MCP server
+
+In office mode's 3D rooms, the three sticky notes (on the monitor, on its
+side and on the wall) and the wall calendar are live: the calendar shows this
+month with today circled, marks the days with events and lists the next
+few; the notes show whatever is written on them.
+
+- **Edit them yourself**: View ▸ Office Mode ▸ Edit Notes and Calendar…, or
+  double-click a note or the calendar in the room.
+- **Let an agent use them**: both apps include a small MCP server that reads
+  and writes the desk. Register it with Claude Code (View ▸ Office Mode ▸
+  Copy Agent (MCP) Setup Command copies this for you):
+
+  ```sh
+  claude mcp add office-desk -- "/Applications/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm" --mcp
+  # or, for the Qt app:
+  claude mcp add office-desk -- /path/to/cool-retro-term --mcp
+  ```
+
+  Its tools are `get_desk`, `set_sticky_note`, `list_calendar_events`,
+  `add_calendar_event`, `update_calendar_event` and `delete_calendar_event`.
+
+Everything is kept in `office-desk.json` in the app's data folder
+(`~/Library/Application Support/cool-retro-term/cool-retro-term/` on macOS,
+`~/.local/share/cool-retro-term/cool-retro-term/` on Linux), shared by both
+apps and the server, so a change made anywhere shows up everywhere straight
+away. The server talks only over stdin/stdout (no network), touches only that
+file, and accepts only plain text within length limits, real dates and
+HH:MM times. The 2D office pictures show the notes and calendar as drawn,
+not live.
+
 ## Keeping up with the original
 
 A GitHub Actions workflow (`upstream-drift.yml`) checks once a month whether [Swordfish90/cool-retro-term](https://github.com/Swordfish90/cool-retro-term)'s `master` has commits this fork doesn't, and opens an issue listing them (labelled `bug` and `upstream-drift`).

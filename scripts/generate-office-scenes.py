@@ -45,7 +45,11 @@ looking down -Z. Shapes are unit sized and scaled by "size": a box is
 1 x 1 x 1, a cylinder is 1 across and 1 high, a sphere is 1 across, and a
 "plane" is 1 x 1 in the XY plane, facing +Z. "rotation" is a quaternion
 [x, y, z, w]. Objects with "group": "sticky-notes" are hidden when the
-sticky notes are turned off. Light intensities are in Qt Quick 3D's brightness units
+sticky notes are turned off. Objects with "live" are drawn by the apps
+from the desk data (office-desk.json: the notes' text and the calendar's
+events) instead of their texture, which is kept for the 2D pictures:
+"note:monitor", "note:side" and "note:wall" are the three sticky notes,
+and "calendar" is the wall calendar. Light intensities are in Qt Quick 3D's brightness units
 (1 = its default).
 
 Requires Pillow and numpy.
@@ -92,7 +96,8 @@ class Scene:
         self.lights = []
 
     def add(self, shape, position, size, color="#808080", rotation=(0, 0, 0), texture=None,
-            repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True, group=None):
+            repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True, group=None,
+            live=None):
         obj = {"shape": shape,
                "position": [round(float(v), 3) for v in position],
                "size": [round(float(v), 3) for v in size],
@@ -108,6 +113,8 @@ class Scene:
             obj["emissive"] = emissive
         if group:
             obj["group"] = group   # e.g. "sticky-notes", which can be turned off
+        if live:
+            obj["live"] = live     # drawn by the app from the desk data; see below
         self.objects.append(obj)
         return obj
 
@@ -386,10 +393,10 @@ def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
     for i, tex in enumerate(sticky_notes):
         if i == 0:
             sc.plane((-mon.w / 2 + size / 2 + 1, sy + mon.h / 2 + top_border / 2, sz - 0.45), size, size,
-                     rotation=(0, 0, 4), texture=tex, shadows=False, group="sticky-notes")
+                     rotation=(0, 0, 4), texture=tex, shadows=False, group="sticky-notes", live="note:monitor")
         else:
             sc.plane((mon.half_width + 0.05, sy - 4, sz - 5), 6, 6, rotation=(0, 90, -5), texture=tex,
-                     shadows=False, group="sticky-notes")
+                     shadows=False, group="sticky-notes", live="note:side")
 
 
 def add_keyboard(sc, base, tex):
@@ -430,7 +437,14 @@ def room_80s(out, rng, mon):
             sc.box((x, 16 + k * 19, -5.8), (32, 16, 1), "#5c371e", roughness=0.5)
             sc.box((x, 20 + k * 19, -5), (10, 1.4, 1.4), "#c8b27a", metalness=0.8, roughness=0.3)
 
-    add_monitor(sc, mon, "#d6ccb2", "#aaa088")
+    t_cal = save(calendar_90s(), out, "calendar.jpg")
+    t_n1 = save(sticky(rng, (250, 236, 120)), out, "sticky-yellow.png")
+    t_n2 = save(sticky(rng, (255, 170, 190)), out, "sticky-pink.png")
+    t_n3 = save(sticky(rng, (180, 230, 160)), out, "sticky-green.png")
+    add_monitor(sc, mon, "#d6ccb2", "#aaa088", sticky_notes=[t_n1, t_n2])
+    sc.plane((-48, 158, -89.3), 30, 37.5, texture=t_cal, roughness=0.6, live="calendar")
+    sc.plane((-14, 164, -89.3), 7, 7, rotation=(0, 0, -6), texture=t_n3, shadows=False, group="sticky-notes",
+             live="note:wall")
     add_keyboard(sc, "#c8bea4", t_keys)
 
     # Poster and a shelf with books and a cassette deck.
@@ -551,10 +565,11 @@ def room_90s(out, rng, mon):
     add_keyboard(sc, "#bebcb4", t_keys)
 
     # Calendar, memos and a note pinned to the partitions.
-    sc.plane((-55, 115, -88.8), 34, 42.5, texture=t_calendar, roughness=0.6)
+    sc.plane((-55, 115, -88.8), 34, 42.5, texture=t_calendar, roughness=0.6, live="calendar")
     sc.plane((50, 118, -88.8), 21, 27, rotation=(0, 0, 3), texture=t_memo, roughness=0.6)
     sc.plane((72, 110, -88.8), 21, 27, rotation=(0, 0, -4), texture=t_memo, roughness=0.6)
-    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False, group="sticky-notes")
+    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False, group="sticky-notes",
+             live="note:wall")
 
     # Mouse mat and mouse, phone, styrofoam cup and a stack of paper.
     sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#6a5aa8", roughness=0.8)
@@ -636,6 +651,9 @@ def main():
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     out = os.path.join(repo, "app", "qml", "office")
     os.makedirs(out, exist_ok=True)
+    # The picture at the top of the live calendar, which the apps draw
+    # under the month name.
+    save(calendar_90s().crop((16, 16, 368, 200)), out, "calendar-picture.jpg")
     for room, builder, seed in (("80s", room_80s, 1984), ("90s", room_90s, 1995)):
         for mon in (STANDARD, WIDE):
             scene = builder(out, np.random.default_rng(seed), mon)

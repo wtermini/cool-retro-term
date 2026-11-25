@@ -175,6 +175,37 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   **Custom…** (in the tab's right-click menu and Shell ▸ Tab Color) picks
   any colour.
 
+## The office desk: sticky notes, calendar and an MCP server
+
+In office mode's 3D rooms, the three sticky notes (on the monitor, on its
+side and on the wall) and the wall calendar are live: the calendar shows this
+month with today circled, marks the days with events and lists the next
+few; the notes show whatever is written on them.
+
+- **Edit them yourself**: View ▸ Office Mode ▸ Edit Notes and Calendar…, or
+  double-click a note or the calendar in the room.
+- **Let an agent use them**: both apps include a small MCP server that reads
+  and writes the desk. Register it with Claude Code (View ▸ Office Mode ▸
+  Copy Agent (MCP) Setup Command copies this for you):
+
+  ```sh
+  claude mcp add office-desk -- "/Applications/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm" --mcp
+  # or, for the Qt app:
+  claude mcp add office-desk -- /path/to/cool-retro-term --mcp
+  ```
+
+  Its tools are `get_desk`, `set_sticky_note`, `list_calendar_events`,
+  `add_calendar_event`, `update_calendar_event` and `delete_calendar_event`.
+
+Everything is kept in `office-desk.json` in the app's data folder
+(`~/Library/Application Support/cool-retro-term/cool-retro-term/` on macOS,
+`~/.local/share/cool-retro-term/cool-retro-term/` on Linux), shared by both
+apps and the server, so a change made anywhere shows up everywhere straight
+away. The server talks only over stdin/stdout (no network), touches only that
+file, and accepts only plain text within length limits, real dates and
+HH:MM times. The 2D office pictures show the notes and calendar as drawn,
+not live.
+
 ## Efficiency
 
 Both apps are built to stay light when nothing is happening:

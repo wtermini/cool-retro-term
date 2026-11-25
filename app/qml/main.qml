@@ -43,6 +43,8 @@ QtObject {
         visible: false
     }
 
+    property OfficeDeskWindow officeDeskWindow: OfficeDeskWindow { }
+
     property Component windowComponent: Component {
         TerminalWindow { }
     }

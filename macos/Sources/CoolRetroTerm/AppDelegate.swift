@@ -176,6 +176,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeLookAround.toggle()
     }
 
+    @MainActor @objc func editOfficeDesk(_ sender: Any?) {
+        OfficeDeskWindowController.shared.show(focusing: "")
+    }
+
+    /// Copies the command that registers the office desk's MCP server with Claude Code.
+    @objc func copyMCPCommand(_ sender: Any?) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(OfficeDesk.mcpCommand, forType: .string)
+    }
+
     @MainActor @objc func resetOfficeView(_ sender: Any?) {
         frontController?.currentSession?.crtView.resetOfficeView()
     }
@@ -427,6 +437,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         office.addItem(item("Sticky Notes", #selector(toggleOfficeStickyNotes(_:))))
         office.addItem(item("3D Room", #selector(toggleOffice3D(_:))))
         office.addItem(item("Look Around", #selector(toggleOfficeLookAround(_:))))
+        office.addItem(.separator())
+        office.addItem(item("Edit Notes and Calendar…", #selector(editOfficeDesk(_:))))
+        office.addItem(item("Copy Agent (MCP) Setup Command", #selector(copyMCPCommand(_:))))
         office.addItem(item("Reset View", #selector(resetOfficeView(_:))))
         view.addItem(withTitle: "Office Mode", action: nil, keyEquivalent: "").submenu = office
         view.addItem(.separator())

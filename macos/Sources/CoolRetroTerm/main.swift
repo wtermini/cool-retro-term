@@ -41,6 +41,7 @@ struct LaunchOptions {
           -p|--profile <prof> Run cool-retro-term with the given profile.
           -h|--help           Print this help.
           -v|--version        Print the version.
+          --mcp               Run the office desk MCP server on stdin/stdout (for agents), not the terminal.
         """
 
     /// Parses the arguments; prints and exits for --help and --version.
@@ -81,6 +82,11 @@ struct LaunchOptions {
         }
         return options
     }
+}
+
+// The office desk's MCP server, started by an agent: no windows.
+if CommandLine.arguments.dropFirst().first == "--mcp" {
+    OfficeDeskMCPServer.run()
 }
 
 LaunchOptions.current = LaunchOptions.parse(CommandLine.arguments)

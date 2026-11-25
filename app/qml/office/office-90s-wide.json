@@ -1907,7 +1907,8 @@
     1.0,
     1.0
    ],
-   "group": "sticky-notes"
+   "group": "sticky-notes",
+   "live": "note:monitor"
   },
   {
    "shape": "plane",
@@ -1936,7 +1937,8 @@
     1.0,
     1.0
    ],
-   "group": "sticky-notes"
+   "group": "sticky-notes",
+   "live": "note:side"
   },
   {
    "shape": "cylinder",
@@ -2223,7 +2225,8 @@
    "repeat": [
     1.0,
     1.0
-   ]
+   ],
+   "live": "calendar"
   },
   {
    "shape": "plane",
@@ -2308,7 +2311,8 @@
     1.0,
     1.0
    ],
-   "group": "sticky-notes"
+   "group": "sticky-notes",
+   "live": "note:wall"
   },
   {
    "shape": "box",
