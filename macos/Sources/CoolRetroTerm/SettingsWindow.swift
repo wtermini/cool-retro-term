@@ -469,7 +469,7 @@ private struct PerformanceSettings: View {
                 LabeledSlider("Burn-in quality", value: model.burnInQuality, range: 0.25...1, percent: true)
                 Toggle("Pause effects when idle", isOn: model.pauseEffectsWhenIdle)
             } footer: {
-                Text("Lower values use less CPU, GPU and battery. What you type is always shown straight away; only the animation of the effects slows down. Pausing when idle stops the animation a few seconds after the last output or key press. In Low Power Mode the effects run at 12 fps. Shared with the Qt app.")
+                Text("Lower values use less CPU, GPU and battery. What you type is always shown straight away; only the animation of the effects slows down. The effects always run while a window can be seen, and stop while it's minimised or hidden; pausing when idle (off by default) also stops them a few seconds after the last output or key press. In Low Power Mode the effects run at 12 fps. Shared with the Qt app.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

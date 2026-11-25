@@ -410,9 +410,10 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     // - otherwise at the effects frame rate (60 fps / the Qt app's frame
     //   skip, or 12 fps in Low Power Mode), to animate noise, flicker and
     //   the like;
-    // - not at all once nothing has happened for a few seconds, when "pause
-    //   effects when idle" is on (except twice a second for a blinking
-    //   cursor); any activity resumes it.
+    // - not at all while the window is minimised or hidden;
+    // - optionally (off by default), not once nothing has happened for a few
+    //   seconds, when "pause effects when idle" is on (except twice a second
+    //   for a blinking cursor); any activity resumes it.
 
     private var lowPowerMode: Bool { ProcessInfo.processInfo.isLowPowerModeEnabled }
 

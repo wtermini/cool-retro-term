@@ -170,7 +170,7 @@ ColumnLayout {
                 checked: appSettings.pauseEffectsWhenIdle
                 onCheckedChanged: appSettings.pauseEffectsWhenIdle = checked
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Stops animating the effects a few seconds after the last output or key press, to save CPU, GPU and battery.")
+                ToolTip.text: qsTr("Off by default. Stops animating the effects a few seconds after the last output or key press, to save CPU, GPU and battery. Effects always pause while every window is minimised or hidden.")
             }
         }
     }

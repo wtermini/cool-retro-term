@@ -252,7 +252,7 @@ final class ProfileStore {
     private(set) var sharedNewLineKeys = true
     private(set) var sharedAlwaysShowTabBar = false
     private(set) var sharedSecureKeyboardEntry = false
-    private(set) var sharedPauseEffectsWhenIdle = true
+    private(set) var sharedPauseEffectsWhenIdle = false
 
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []

@@ -18,6 +18,7 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *******************************************************************************/
 import QtQuick 2.2
+import QtQuick.Window
 
 import "menus"
 
@@ -29,7 +30,9 @@ QtObject {
     }
 
     property TimeManager timeManager: TimeManager {
-        enableTimer: windowsModel.count > 0
+        // Effects animate while any window can be seen; they stop when every
+        // window is minimised or hidden.
+        enableTimer: appRoot.shownWindowCount > 0
     }
 
     property SettingsWindow settingsWindow: SettingsWindow {
@@ -46,14 +49,29 @@ QtObject {
 
     property ListModel windowsModel: ListModel { }
 
+    /// Windows that are neither minimised nor hidden.
+    property int shownWindowCount: 0
+
+    function updateShownWindowCount() {
+        var shown = 0
+        for (var i = 0; i < windowsModel.count; i++) {
+            var w = windowsModel.get(i).window
+            if (w && w.visible && w.visibility !== Window.Minimized && w.visibility !== Window.Hidden)
+                shown++
+        }
+        shownWindowCount = shown
+    }
+
     function createWindow() {
         var window = windowComponent.createObject(null)
         if (!window)
             return
 
         windowsModel.append({ window: window })
+        window.visibilityChanged.connect(updateShownWindowCount)
         window.show()
         window.requestActivate()
+        updateShownWindowCount()
     }
 
     function closeWindow(window) {
@@ -65,6 +83,7 @@ QtObject {
         }
 
         window.destroy()
+        updateShownWindowCount()
 
         if (windowsModel.count === 0) {
             appSettings.close()

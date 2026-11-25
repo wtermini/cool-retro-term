@@ -46,7 +46,7 @@ QtObject {
     property bool newLineKeys: true          // Shift/Control-Return insert a new line
     property bool alwaysShowTabBar: false
     property bool secureKeyboardEntry: false // macOS only
-    property bool pauseEffectsWhenIdle: true   // stop animating effects when nothing happens
+    property bool pauseEffectsWhenIdle: false  // optional: stop animating effects when nothing happens
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
