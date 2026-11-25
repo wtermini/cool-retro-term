@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeLookAround.toggle()
     }
 
-    @objc func resetOfficeView(_ sender: Any?) {
+    @MainActor @objc func resetOfficeView(_ sender: Any?) {
         frontController?.currentSession?.crtView.resetOfficeView()
     }
 
