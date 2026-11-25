@@ -435,12 +435,12 @@ def room_80s(out, rng, mon):
              emissive="#ffffff", shadows=False)
 
     # Walnut desk with two pedestals of drawers.
-    sc.box((0, DESK_Y - 2, -50), (150, 4, 76), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.45)
+    sc.box((0, DESK_Y - 2, -45), (150, 4, 86), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.45)
     for x in (-56, 56):
-        sc.box((x, (DESK_Y - 4) / 2, -50), (36, DESK_Y - 4, 70), "#ffffff", texture=t_desk, roughness=0.5)
+        sc.box((x, (DESK_Y - 4) / 2, -45), (36, DESK_Y - 4, 78), "#ffffff", texture=t_desk, roughness=0.5)
         for k in range(3):
-            sc.box((x, 16 + k * 19, -14.8), (32, 16, 1), "#5c371e", roughness=0.5)
-            sc.box((x, 20 + k * 19, -14), (10, 1.4, 1.4), "#c8b27a", metalness=0.8, roughness=0.3)
+            sc.box((x, 16 + k * 19, -5.8), (32, 16, 1), "#5c371e", roughness=0.5)
+            sc.box((x, 20 + k * 19, -5), (10, 1.4, 1.4), "#c8b27a", metalness=0.8, roughness=0.3)
 
     add_monitor(sc, mon, "#d6ccb2", "#aaa088")
     add_keyboard(sc, "#c8bea4", t_keys)
@@ -540,10 +540,10 @@ def room_90s(out, rng, mon):
     partition((0, 75, -280), 190, 0)
 
     # Laminate desk on metal legs, and a PC tower on the floor.
-    sc.box((0, DESK_Y - 1.5, -55), (186, 3, 70), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.4)
-    sc.box((0, DESK_Y - 4, -20.5), (186, 2, 1), "#3c3c40", roughness=0.5)
+    sc.box((0, DESK_Y - 1.5, -45), (186, 3, 90), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.4)
+    sc.box((0, DESK_Y - 4, -0.5), (186, 2, 1), "#3c3c40", roughness=0.5)
     for x in (-88, 88):
-        sc.box((x, (DESK_Y - 3) / 2, -55), (4, DESK_Y - 3, 64), "#5a5c62", metalness=0.6, roughness=0.4)
+        sc.box((x, (DESK_Y - 3) / 2, -45), (4, DESK_Y - 3, 84), "#5a5c62", metalness=0.6, roughness=0.4)
     sc.box((60, 22, -60), (20, 44, 45), "#cbc7b8", roughness=0.5)
     sc.box((60, 36, -37.4), (14, 3, 0.4), "#3a3a3c")
     sc.box((60, 28, -37.4), (10, 1.5, 0.4), "#3a3a3c")
