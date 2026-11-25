@@ -678,7 +678,7 @@ def main():
         for mon in (STANDARD, WIDE):
             scene = builder(out, np.random.default_rng(seed), mon)
             name = "office-%s-%s.json" % (room, mon.name)
-            with open(os.path.join(out, name), "w") as f:
+            with open(os.path.join(out, name), "w", encoding="utf-8") as f:
                 json.dump(scene, f, indent=1)
                 f.write("\n")
             print("wrote %s: %d objects" % (name, len(scene["objects"])), file=sys.stderr)

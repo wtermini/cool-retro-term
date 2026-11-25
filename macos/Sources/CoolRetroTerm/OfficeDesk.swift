@@ -168,7 +168,7 @@ final class OfficeDesk {
     private func modify(_ change: () -> Bool) -> Bool {
         let folder = Self.fileURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let lock = open(folder.appendingPathComponent("office-desk.lock").path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        let lock = open(folder.appendingPathComponent("office-desk.lock").path, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0o600)
         if lock >= 0 { flock(lock, LOCK_EX) }
         defer {
             if lock >= 0 {

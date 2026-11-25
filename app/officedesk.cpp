@@ -121,7 +121,7 @@ public:
     explicit DeskLock(const QString &path)
     {
 #ifdef Q_OS_UNIX
-        m_fd = ::open(QFile::encodeName(path).constData(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        m_fd = ::open(QFile::encodeName(path).constData(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
         if (m_fd >= 0)
             ::flock(m_fd, LOCK_EX);
 #else
