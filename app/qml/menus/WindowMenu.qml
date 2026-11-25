@@ -64,6 +64,12 @@ MenuBar {
             MenuItem { text: qsTr("Underline"); checkable: true; checked: appSettings.cursorShape === 1; onTriggered: appSettings.cursorShape = 1 }
             MenuItem { text: qsTr("Bar"); checkable: true; checked: appSettings.cursorShape === 2; onTriggered: appSettings.cursorShape = 2 }
         }
+        Menu {
+            title: qsTr("Office Mode")
+            MenuItem { text: qsTr("Off"); checkable: true; checked: appSettings.officeScene === ""; onTriggered: appSettings.officeScene = "" }
+            MenuItem { text: qsTr("80s Den"); checkable: true; checked: appSettings.officeScene === "80s"; onTriggered: appSettings.officeScene = "80s" }
+            MenuItem { text: qsTr("90s Cubicle"); checkable: true; checked: appSettings.officeScene === "90s"; onTriggered: appSettings.officeScene = "90s" }
+        }
     }
     Menu {
         id: profilesMenu

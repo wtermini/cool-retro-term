@@ -110,6 +110,12 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
 - **View ▸ Profile** switches between the built-in profiles and your custom
   profiles from the Qt app. The choice is saved to the shared settings and
   applies to every window.
+- **View ▸ Office Mode** zooms out to show the terminal as the screen of a
+  monitor on a desk, in an **80s Den** (wood panelling, beige monitor) or a
+  **90s Cubicle** (fabric partition, platinum monitor). The terminal gets the
+  monitor's screen, so it has fewer columns; make the text smaller to fit
+  more. Also in Settings ▸ General, and shared with the Qt app (View ▸
+  Office Mode, or Settings ▸ Advanced).
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
@@ -214,6 +220,10 @@ GPL-3.0:
 - The bundled fonts, unmodified and each with its license file (SIL OFL,
   MIT, CC BY-SA 4.0, Kreative free use license and others).
 
+The office mode pictures are original to this project: they're drawn by
+`scripts/generate-office-scenes.py` from shapes, gradients and noise, and
+are covered by the same GPL as the rest of the code.
+
 `build-app.sh` puts the GPL text, SwiftTerm's license and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the app's
 `Contents/Resources/Licenses`, next to the fonts and their licenses; Help ▸
@@ -243,6 +253,7 @@ counterpart here:
 | Right-click menu (copy, paste, new tab/window, profiles, settings, full screen, about) | Same |
 | New window/tab, close tab, zoom in/out, Cmd-1…9, full screen | Same shortcuts |
 | `--default-settings`, `--workdir`, `-e`, `-p/--profile`, `--fullscreen`, `-h`, `-v` | Same options (run the binary inside the app bundle) |
+| Office mode (View ▸ Office Mode, Settings ▸ Advanced) | View ▸ Office Mode, Settings ▸ General |
 | Show menu bar | Not applicable on macOS (the menu bar is always there) |
 
 ## Not done yet

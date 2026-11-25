@@ -183,6 +183,7 @@ final class CRTOverlayView: MTKView {
 final class CRTTerminalView: NSView, MTKViewDelegate {
     let terminal: RetroTerminalView
     private let overlay: CRTOverlayView
+    private let officeView = OfficeSceneView(frame: .zero)
     private var renderer: CRTRenderer?
 
     private var profile: Profile
@@ -232,6 +233,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         terminal.installSecurityPolicy()
         terminal.menu = (NSApp.delegate as? AppDelegate)?.makeContextMenu()
+        addSubview(officeView)
         addSubview(terminal)
 
         overlay.host = self
@@ -351,6 +353,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             ? NSColor.black.cgColor
             : NSColor(rgb: profile.effectiveBackgroundColor).cgColor
 
+        officeView.scene = store.officeScene
         overlay.isHidden = !showsEffects
         terminal.suppressesOwnDrawing = showsEffects
         updatePaused()
@@ -385,7 +388,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         }()
         label.stringValue = "  \(cols) × \(rows)  "
         label.sizeToFit()
-        label.frame = NSRect(x: (bounds.width - label.frame.width) / 2, y: (bounds.height - label.frame.height - 12) / 2,
+        let screen = screenRect
+        label.frame = NSRect(x: screen.midX - label.frame.width / 2, y: screen.midY - (label.frame.height + 12) / 2,
                              width: label.frame.width, height: label.frame.height + 12)
         label.alphaValue = 1
         label.isHidden = false
@@ -421,15 +425,28 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     /// quality setting (the Qt app's window scaling).
     private func updateDrawableSize() {
         let scale = (window?.backingScaleFactor ?? 2) * CGFloat(ProfileStore.shared.windowScaling)
-        let size = CGSize(width: max(bounds.width * scale, 1).rounded(), height: max(bounds.height * scale, 1).rounded())
+        let screen = screenRect
+        let size = CGSize(width: max(screen.width * scale, 1).rounded(), height: max(screen.height * scale, 1).rounded())
         if overlay.drawableSize != size { overlay.drawableSize = size }
     }
 
+    /// The part of the view that shows the CRT: all of it, or in office
+    /// mode the monitor's screen.
+    private var screenRect: CGRect {
+        guard officeView.scene != .off else { return bounds }
+        return OfficeScene.layout(in: bounds.size).screen
+    }
+
     private func layoutSubviewsNow() {
-        overlay.frame = bounds
+        let screen = screenRect
+        officeView.frame = bounds
+        if officeView.scene != .off {
+            officeView.place(image: OfficeScene.layout(in: bounds.size).image)
+        }
+        overlay.frame = screen
         updateDrawableSize()
         let margin = showsEffects ? profile.marginPoints : 4
-        terminal.frame = bounds.insetBy(dx: min(margin, bounds.width / 4), dy: min(margin, bounds.height / 4))
+        terminal.frame = screen.insetBy(dx: min(margin, screen.width / 4), dy: min(margin, screen.height / 4))
         window?.invalidateCursorRects(for: overlay)
         contentDirty = true
     }
@@ -579,8 +596,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private func writeDebugSnapshot(renderer: CRTRenderer, uniforms: CRTUniforms, size: CGSize) {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["CRT_SNAPSHOT_PATH"] else { return }
-        if let image = renderer.renderImage(width: Int(size.width), height: Int(size.height),
-                                            pixelFormat: overlay.colorPixelFormat, uniforms: uniforms),
+        if let crt = renderer.renderImage(width: Int(size.width), height: Int(size.height),
+                                          pixelFormat: overlay.colorPixelFormat, uniforms: uniforms),
+           let image = composeWithOfficeScene(crt),
            let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
             do {
                 try png.write(to: URL(fileURLWithPath: path))
@@ -594,6 +612,29 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if environment["CRT_SNAPSHOT_QUIT"] == "1" {
             NSApp.terminate(nil)
         }
+    }
+
+    /// In office mode, puts the rendered screen into the office picture, as
+    /// the window shows it.
+    private func composeWithOfficeScene(_ crt: CGImage) -> CGImage? {
+        let scene = officeView.scene
+        guard scene != .off,
+              let picture = scene.image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return crt }
+        let scale = CGFloat(crt.width) / max(screenRect.width, 1)
+        let width = Int((bounds.width * scale).rounded()), height = Int((bounds.height * scale).rounded())
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return crt }
+        let layout = OfficeScene.layout(in: bounds.size)
+        func scaled(_ r: CGRect) -> CGRect {
+            CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
+        }
+        context.setFillColor(scene.wallColor.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.interpolationQuality = .high
+        context.draw(picture, in: scaled(layout.image))
+        context.draw(crt, in: scaled(screenRect))
+        return context.makeImage()
     }
 
     private func captureTerminal(into renderer: CRTRenderer) {
@@ -648,7 +689,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private func makeUniforms(time: Float, drawableSize: CGSize) -> CRTUniforms {
         let p = profile
         var u = CRTUniforms()
-        let viewSize = SIMD2<Float>(Float(max(bounds.width, 1)), Float(max(bounds.height, 1)))
+        let screen = overlay.frame
+        let viewSize = SIMD2<Float>(Float(max(screen.width, 1)), Float(max(screen.height, 1)))
 
         u.fontColor = opaque(p.effectiveFontColor)
         u.backgroundColor = opaque(p.effectiveBackgroundColor)
@@ -661,8 +703,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         // Where the terminal sits on the screen, in UV space (origin top left).
         let content = terminal.frame
-        u.contentRect = SIMD4(Float(content.minX) / viewSize.x,
-                              Float(bounds.height - content.maxY) / viewSize.y,
+        u.contentRect = SIMD4(Float(content.minX - screen.minX) / viewSize.x,
+                              Float(screen.maxY - content.maxY) / viewSize.y,
                               Float(content.width) / viewSize.x,
                               Float(content.height) / viewSize.y)
         u.viewportSize = viewSize

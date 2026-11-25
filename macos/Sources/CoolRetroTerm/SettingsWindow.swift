@@ -121,7 +121,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private static func view(for pane: Pane, model: SettingsModel) -> AnyView {
         switch pane {
-        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 560))
+        case .general: return AnyView(GeneralSettings(model: model).frame(width: 540, height: 600))
         case .profiles: return AnyView(ProfilesSettings(model: model).frame(width: 540, height: 700))
         case .text: return AnyView(TextSettings(model: model).frame(width: 540, height: 370))
         case .effects: return AnyView(EffectsSettings(model: model).frame(width: 540, height: 740))
@@ -188,6 +188,9 @@ final class SettingsModel: ObservableObject {
     }
     var burnInQuality: Binding<Double> {
         Binding(get: { ProfileStore.shared.burnInQuality }, set: { ProfileStore.shared.setBurnInQuality($0) })
+    }
+    var officeScene: Binding<OfficeScene> {
+        Binding(get: { ProfileStore.shared.officeScene }, set: { ProfileStore.shared.officeScene = $0 })
     }
     var cursorShape: Binding<Int> {
         Binding(get: { ProfileStore.shared.cursorShape }, set: { ProfileStore.shared.cursorShape = $0 })
@@ -337,6 +340,9 @@ private struct GeneralSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Window") {
+                Picker("Office mode", selection: model.officeScene) {
+                    ForEach(OfficeScene.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
                 Toggle("Always show the tab bar", isOn: model.alwaysShowTabBar)
                 Toggle("Show the tab bar in full screen", isOn: model.tabBarInFullScreen)
                 Toggle("Show the terminal size when resizing", isOn: model.showTerminalSize)

@@ -72,6 +72,15 @@ ColumnLayout {
                 checked: appSettings.newLineKeys
                 onCheckedChanged: appSettings.newLineKeys = checked
             }
+            RowLayout {
+                Label { text: qsTr("Office Mode") }
+                ComboBox {
+                    readonly property var scenes: ["", "80s", "90s"]
+                    model: [qsTr("Off"), qsTr("80s Den"), qsTr("90s Cubicle")]
+                    currentIndex: Math.max(scenes.indexOf(appSettings.officeScene), 0)
+                    onActivated: (index) => appSettings.officeScene = scenes[index]
+                }
+            }
             CheckBox {
                 text: qsTr("Always show the tab bar")
                 checked: appSettings.alwaysShowTabBar

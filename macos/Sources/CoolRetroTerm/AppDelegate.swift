@@ -149,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.effectsEnabled.toggle()
     }
 
+    @objc func chooseOfficeScene(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let scene = OfficeScene(rawValue: raw) else { return }
+        ProfileStore.shared.officeScene = scene
+    }
+
     @objc func chooseCursorShape(_ sender: NSMenuItem) {
         ProfileStore.shared.cursorShape = sender.tag
     }
@@ -230,6 +235,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return frontController != nil
         case #selector(toggleEffects(_:)):
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
+        case #selector(chooseOfficeScene(_:)):
+            menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeScene.rawValue ? .on : .off
         case #selector(chooseCursorShape(_:)):
             menuItem.state = menuItem.tag == ProfileStore.shared.cursorShape ? .on : .off
         case #selector(toggleBlinkingCursor(_:)):
@@ -359,6 +366,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         view.addItem(withTitle: "Cursor Shape", action: nil, keyEquivalent: "").submenu = shapes
         view.addItem(item("Always Show Tab Bar", #selector(toggleAlwaysShowTabBar(_:))))
+        let office = NSMenu(title: "Office Mode")
+        for scene in OfficeScene.allCases {
+            let entry = item(scene.title, #selector(chooseOfficeScene(_:)))
+            entry.representedObject = scene.rawValue
+            office.addItem(entry)
+        }
+        view.addItem(withTitle: "Office Mode", action: nil, keyEquivalent: "").submenu = office
         view.addItem(.separator())
         view.addItem(item("Bigger", #selector(makeTextBigger(_:)), "+"))
         view.addItem(item("Smaller", #selector(makeTextSmaller(_:)), "-"))

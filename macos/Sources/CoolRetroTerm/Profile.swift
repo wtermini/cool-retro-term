@@ -254,6 +254,7 @@ final class ProfileStore {
     private(set) var sharedSecureKeyboardEntry = false
     private(set) var sharedPauseEffectsWhenIdle = false
     private(set) var sharedCursorShape = 0
+    private(set) var sharedOfficeScene = OfficeScene.off
 
     private init() {
         let exported = AppResources.decodeJSONArray(from: "profiles.json") ?? []
@@ -315,6 +316,11 @@ final class ProfileStore {
         if let b = settings["secureKeyboardEntry"] as? Bool { sharedSecureKeyboardEntry = b }
         if let b = settings["pauseEffectsWhenIdle"] as? Bool { sharedPauseEffectsWhenIdle = b }
         if let n = settings["cursorShape"] as? NSNumber { sharedCursorShape = min(max(n.intValue, 0), 2) }
+        sharedOfficeScene = OfficeScene(rawValue: settings["officeScene"] as? String ?? "") ?? .off
+        if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_SCENE"],
+           let scene = OfficeScene(rawValue: override) {
+            sharedOfficeScene = scene   // used for CI screenshots
+        }
         if settings["useCustomCommand"] as? Bool == true,
            let command = settings["customCommand"] as? String {
             let arguments = tokenizeCommandLine(command)
@@ -513,6 +519,12 @@ final class ProfileStore {
     var cursorShape: Int {
         get { sharedCursorShape }
         set { sharedCursorShape = min(max(newValue, 0), 2); writeAppSetting("cursorShape", sharedCursorShape) }
+    }
+
+    /// Office mode: the terminal shown as a monitor on a desk. Shared with the Qt app.
+    var officeScene: OfficeScene {
+        get { sharedOfficeScene }
+        set { sharedOfficeScene = newValue; writeAppSetting("officeScene", newValue.rawValue) }
     }
 
     /// Stop animating the effects a few seconds after the last activity.

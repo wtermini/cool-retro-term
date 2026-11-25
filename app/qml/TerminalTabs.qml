@@ -296,33 +296,42 @@ Item {
             }
         }
 
-        StackLayout {
-            id: stack
+        OfficeScene {
+            id: office
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: tabBar.currentIndex
+            scene: appSettings.officeScene
 
-            Repeater {
-                model: tabsModel
-                TerminalContainer {
-                    property bool shouldHaveFocus: terminalWindow.active && StackLayout.isCurrentItem && tabsRoot.editingIndex < 0
-                    isActive: StackLayout.isCurrentItem
-                    onShouldHaveFocusChanged: {
-                        if (shouldHaveFocus) {
-                            activate()
+            StackLayout {
+                id: stack
+                x: office.screenRect.x
+                y: office.screenRect.y
+                width: office.screenRect.width
+                height: office.screenRect.height
+                currentIndex: tabBar.currentIndex
+
+                Repeater {
+                    model: tabsModel
+                    TerminalContainer {
+                        property bool shouldHaveFocus: terminalWindow.active && StackLayout.isCurrentItem && tabsRoot.editingIndex < 0
+                        isActive: StackLayout.isCurrentItem
+                        onShouldHaveFocusChanged: {
+                            if (shouldHaveFocus) {
+                                activate()
+                            }
                         }
-                    }
-                    onTitleChanged: tabsModel.setProperty(index, "title", normalizeTitle(title))
-                    onTabColorRequested: (spec) => tabsRoot.applyProgramColor(index, spec)
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    onSessionFinished: tabsRoot.closeTab(index)
-                    onTerminalSizeChanged: updateTerminalSize()
+                        onTitleChanged: tabsModel.setProperty(index, "title", normalizeTitle(title))
+                        onTabColorRequested: (spec) => tabsRoot.applyProgramColor(index, spec)
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        onSessionFinished: tabsRoot.closeTab(index)
+                        onTerminalSizeChanged: updateTerminalSize()
 
-                    function updateTerminalSize() {
-                        // Every tab will have the same size so we can simply take the first one.
-                        if (index == 0) {
-                            tabsRoot.terminalSize = terminalSize
+                        function updateTerminalSize() {
+                            // Every tab will have the same size so we can simply take the first one.
+                            if (index == 0) {
+                                tabsRoot.terminalSize = terminalSize
+                            }
                         }
                     }
                 }

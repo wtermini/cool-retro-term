@@ -23,6 +23,9 @@
         <file>TerminalContainer.qml</file>
         <file>TerminalTabs.qml</file>
         <file>images/crt256.png</file>
+        <file>images/office-80s.jpg</file>
+        <file>images/office-90s.jpg</file>
+        <file>OfficeScene.qml</file>
         <file>utils.js</file>
         <file>images/allNoise512.png</file>
         <file>fonts/fixedsys-excelsior/FSEX301-L2.ttf</file>

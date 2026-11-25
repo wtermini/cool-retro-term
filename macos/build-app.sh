@@ -46,6 +46,8 @@ mkdir -p "$RESOURCES/Fonts"
 python3 scripts/export-shared-data.py "$REPO_DIR" "$RESOURCES"
 cp -R "$REPO_DIR/app/qml/fonts/." "$RESOURCES/Fonts/"
 cp Shaders/CRT.metal "$RESOURCES/"
+mkdir -p "$RESOURCES/Office"
+cp "$REPO_DIR"/app/qml/images/office-*.jpg "$RESOURCES/Office/"
 
 swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR=$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)

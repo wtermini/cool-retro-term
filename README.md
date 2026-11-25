@@ -25,6 +25,10 @@ If you want to get a hold of the latest version, just go to the Releases page an
 
 Alternatively, most distributions such as Ubuntu, Fedora or Arch already package cool-retro-term in their official repositories.
 
+## Office mode
+
+View ▸ Office Mode zooms out to show the terminal as the screen of a monitor on a desk, in an **80s Den** or a **90s Cubicle**. The pictures are original artwork drawn by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py). The setting is shared with Cool Retro Term SE.
+
 ## Cool Retro Term SE (native macOS app)
 
 There is also a native macOS edition, **Cool Retro Term SE**, in [`macos/`](macos/README.md), built with AppKit, Metal and SwiftTerm. It shares the profiles and fonts with the Qt app, which is unchanged.

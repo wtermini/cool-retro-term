@@ -7,6 +7,7 @@ on:
       - 'macos/**'
       - 'app/qml/fonts/**'
       - 'app/qml/ApplicationSettings.qml'
+      - 'app/qml/images/office-*.jpg'
       - 'app/fontmanager.cpp'
       - '.github/workflows/macos-native.yml'
   pull_request:
@@ -39,10 +40,13 @@ jobs:
           APP_BIN="macos/build/Cool Retro Term SE.app/Contents/MacOS/CoolRetroTerm"
           mkdir -p screenshots
           status=0
-          for profile in "Monochrome Green" "Default Amber" "IBM VGA 8x16"; do
-            name=$(echo "$profile" | tr ' ' '-')
+          # "profile|office scene": the last two show office mode.
+          for entry in "Monochrome Green|" "Default Amber|" "IBM VGA 8x16|" "Default Amber|80s" "Monochrome Green|90s"; do
+            profile="${entry%|*}"
+            scene="${entry#*|}"
+            name=$(echo "$profile" | tr ' ' '-')${scene:+-office-$scene}
             out="$PWD/screenshots/$name.png"
-            export CRT_PROFILE="$profile" CRT_SNAPSHOT_PATH="$out" CRT_SNAPSHOT_QUIT=1 \
+            export CRT_PROFILE="$profile" CRT_OFFICE_SCENE="$scene" CRT_SNAPSHOT_PATH="$out" CRT_SNAPSHOT_QUIT=1 \
               CRT_SNAPSHOT_COMMAND="sh $PWD/macos/scripts/demo.sh"
             lldb --batch -o run -k "thread backtrace all" -k "quit 1" -- "$APP_BIN" \
               > "screenshots/$name.log" 2>&1 &
@@ -53,10 +57,10 @@ jobs:
             done
             kill "$pid" 2>/dev/null || true
             wait "$pid" 2>/dev/null || true
-            echo "::group::$profile log"
+            echo "::group::$name log"
             grep -v "^\s*$" "screenshots/$name.log" | head -150
             echo "::endgroup::"
-            if [ -f "$out" ]; then echo "screenshot: $out"; else echo "::error::no screenshot for $profile"; status=1; fi
+            if [ -f "$out" ]; then echo "screenshot: $out"; else echo "::error::no screenshot for $name"; status=1; fi
           done
           exit $status
 
