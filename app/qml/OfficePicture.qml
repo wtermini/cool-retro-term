@@ -31,6 +31,11 @@ Item {
     /// "standard" (4:3) or "wide" (16:10).
     property string monitor: "wide"
     property var info: null   // the "picture" part of office/office-<scene>-<monitor>.json
+    /// Show the sticky notes.
+    property bool stickyNotes: true
+    /// "close" (the monitor fills the window), "desk" (the picture fills the
+    /// window, around the monitor) or "room" (the whole picture).
+    property string zoom: "desk"
 
     function load() {
         const request = new XMLHttpRequest()
@@ -49,11 +54,12 @@ Item {
     readonly property rect monitor: info ? Qt.rect(info.monitor[0], info.monitor[1], info.monitor[2], info.monitor[3])
                                          : Qt.rect(0, 0, 1, 1)
 
-    // Fill the item with the picture, centred on the monitor, zooming out
-    // further if needed so the whole monitor stays in view.
-    readonly property real imageScale: Math.min(
-        Math.max(width / imageSize.width, height / imageSize.height),
-        width / monitor.width, height / monitor.height)
+    // At "desk", fill the item with the picture, centred on the monitor,
+    // zooming out further if needed so the whole monitor stays in view.
+    readonly property real fitMonitor: Math.min(width / monitor.width, height / monitor.height)
+    readonly property real imageScale: zoom === "close" ? fitMonitor
+        : zoom === "room" ? Math.min(width / imageSize.width, height / imageSize.height)
+        : Math.min(Math.max(width / imageSize.width, height / imageSize.height), fitMonitor)
     readonly property real imageX: placement(width, imageSize.width * imageScale, monitor.x + monitor.width / 2)
     readonly property real imageY: placement(height, imageSize.height * imageScale, monitor.y + monitor.height / 2)
 
@@ -77,7 +83,9 @@ Item {
     }
 
     Image {
-        source: picture.info ? "office/" + picture.info.image : ""
+        source: !picture.info ? ""
+              : "office/" + (!picture.stickyNotes && picture.info.imageWithoutNotes ? picture.info.imageWithoutNotes
+                                                                                   : picture.info.image)
         x: picture.imageX
         y: picture.imageY
         width: picture.imageSize.width * picture.imageScale

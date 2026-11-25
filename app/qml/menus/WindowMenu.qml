@@ -29,6 +29,23 @@ MenuBar {
         MenuItem { action: newWindowAction }
         MenuItem { action: newTabAction }
         MenuItem { action: renameTabAction }
+        Menu {
+            id: tabColorMenu
+            title: qsTr("Tab Color")
+            MenuItem { text: qsTr("None"); onTriggered: terminalTabs.setTabColor(terminalTabs.currentIndex, "") }
+            MenuSeparator { }
+            Instantiator {
+                model: terminalTabs.tabColors
+                delegate: MenuItem {
+                    text: modelData.name
+                    onTriggered: terminalTabs.setTabColor(terminalTabs.currentIndex, modelData.color)
+                }
+                onObjectAdded: (index, object) => tabColorMenu.insertItem(index + 2, object)
+                onObjectRemoved: (index, object) => tabColorMenu.removeItem(object)
+            }
+            MenuSeparator { }
+            MenuItem { text: qsTr("Custom…"); onTriggered: terminalTabs.chooseCustomColor(terminalTabs.currentIndex) }
+        }
         MenuItem { action: closeTabAction }
         MenuSeparator { }
         MenuItem { action: quitAction }
@@ -73,6 +90,11 @@ MenuBar {
             MenuItem { text: qsTr("Standard Monitor (4:3)"); checkable: true; checked: appSettings.officeMonitor === "standard"; onTriggered: appSettings.officeMonitor = "standard" }
             MenuItem { text: qsTr("Widescreen Monitor (16:10)"); checkable: true; checked: appSettings.officeMonitor === "wide"; onTriggered: appSettings.officeMonitor = "wide" }
             MenuSeparator { }
+            MenuItem { text: qsTr("Close Up"); checkable: true; checked: appSettings.officeZoom === "close"; onTriggered: appSettings.officeZoom = "close" }
+            MenuItem { text: qsTr("At the Desk"); checkable: true; checked: appSettings.officeZoom === "desk"; onTriggered: appSettings.officeZoom = "desk" }
+            MenuItem { text: qsTr("Whole Room"); checkable: true; checked: appSettings.officeZoom === "room"; onTriggered: appSettings.officeZoom = "room" }
+            MenuSeparator { }
+            MenuItem { text: qsTr("Sticky Notes"); checkable: true; checked: appSettings.officeStickyNotes; onTriggered: appSettings.officeStickyNotes = checked }
             MenuItem { text: qsTr("3D Room"); checkable: true; checked: appSettings.office3D; onTriggered: appSettings.office3D = checked }
             MenuItem { text: qsTr("Look Around"); checkable: true; enabled: appSettings.office3D; checked: appSettings.officeLookAround; onTriggered: appSettings.officeLookAround = checked }
             MenuItem { text: qsTr("Reset View"); enabled: appSettings.officeScene !== "" && appSettings.office3D; onTriggered: terminalTabs.resetOfficeView() }

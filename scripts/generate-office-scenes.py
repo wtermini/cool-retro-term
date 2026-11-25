@@ -44,7 +44,8 @@ Scene format: units are centimetres, Y is up, and the camera starts out
 looking down -Z. Shapes are unit sized and scaled by "size": a box is
 1 x 1 x 1, a cylinder is 1 across and 1 high, a sphere is 1 across, and a
 "plane" is 1 x 1 in the XY plane, facing +Z. "rotation" is a quaternion
-[x, y, z, w]. Light intensities are in Qt Quick 3D's brightness units
+[x, y, z, w]. Objects with "group": "sticky-notes" are hidden when the
+sticky notes are turned off. Light intensities are in Qt Quick 3D's brightness units
 (1 = its default).
 
 Requires Pillow and numpy.
@@ -91,7 +92,7 @@ class Scene:
         self.lights = []
 
     def add(self, shape, position, size, color="#808080", rotation=(0, 0, 0), texture=None,
-            repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True):
+            repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True, group=None):
         obj = {"shape": shape,
                "position": [round(float(v), 3) for v in position],
                "size": [round(float(v), 3) for v in size],
@@ -105,6 +106,8 @@ class Scene:
             obj["repeat"] = [round(float(v), 3) for v in repeat]
         if emissive:
             obj["emissive"] = emissive
+        if group:
+            obj["group"] = group   # e.g. "sticky-notes", which can be turned off
         self.objects.append(obj)
         return obj
 
@@ -339,26 +342,27 @@ class Monitor:
 # A 14-inch 4:3 monitor on a swivel stand.
 STANDARD = Monitor("standard", 29.6, 22.2, DESK_Y + 27.5, -41.6, 20, DESK_Y + 44, 95)
 # A 24-inch 16:10 workstation monitor on a base plate: big, deep and heavy.
-WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 28, -29.6, 28, DESK_Y + 47, 110)
+WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 31, -29.6, 29, DESK_Y + 53.5, 110)
 
 
 def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
-    """The monitor, screen facing +Z. Sticky notes are (x, y, rotation,
-    texture), relative to the top left corner of the casing."""
+    """The monitor, screen facing +Z. `sticky_notes` are up to two note
+    textures: the first goes on the bezel above the top left corner of the
+    screen, the second on the right side of the casing."""
     sy, sz = mon.y, mon.z
     if mon is WIDE:
         # Dark base plate and swivel.
         sc.box((0, DESK_Y + 1.5, -52), (46, 3, 40), "#2a2a2c", roughness=0.45)
         sc.box((0, DESK_Y + 4, -50), (20, 3, 16), "#323234", roughness=0.45)
         # Bezel, then the long tapered back of the tube.
-        sc.box((0, sy - 2, sz - 4.0), (56, 42, 7), casing, roughness=0.4)
-        sc.box((0, sy - 1.5, sz - 14.4), (53, 39, 15.5), casing, roughness=0.45)
-        sc.box((0, sy - 1, sz - 30), (45, 33, 16), casing, roughness=0.5)
-        sc.box((0, sy - 0.5, sz - 44), (35, 25, 13), casing_dark, roughness=0.55)
+        sc.box((0, sy - 1.5, sz - 4.0), (58, 48, 7), casing, roughness=0.4)
+        sc.box((0, sy - 1.5, sz - 14.4), (55, 45, 15.5), casing, roughness=0.45)
+        sc.box((0, sy - 1.5, sz - 30), (47, 38, 16), casing, roughness=0.5)
+        sc.box((0, sy - 1, sz - 44), (37, 29, 13), casing_dark, roughness=0.55)
         for i in range(14):
-            sc.box((-19.5 + i * 3, sy + 17.6, sz - 30), (1.0, 0.3, 12), casing_dark, shadows=False)
+            sc.box((-19.5 + i * 3, sy + 22.6, sz - 14.4), (1.0, 0.3, 12), casing_dark, shadows=False)
         sc.box((0, sy, sz - 0.6), (mon.w + 3, mon.h + 3, 0.6), "#141412", roughness=0.3)
-        chin = sy - mon.h / 2 - 5.5
+        chin = sy - mon.h / 2 - 5
         sc.box((-20, chin, sz - 0.4), (9, 1.2, 0.3), casing_dark)
         for i in range(4):
             sc.box((8 + i * 3.2, chin, sz - 0.3), (2.2, 1.2, 0.6), casing_dark)
@@ -377,9 +381,15 @@ def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
         sc.box((-13, chin, sz - 0.4), (7, 1.2, 0.3), casing_dark)
         sc.box((14, chin, sz - 0.3), (3, 1.6, 0.8), casing_dark)
         sc.sphere((10, chin, sz - 0.3), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
-    for x, y, rot, tex in sticky_notes:
-        sc.plane((-mon.half_width + x, mon.top - y, sz - 0.35), 6, 6, rotation=(0, 0, rot), texture=tex,
-                 shadows=False)
+    top_border = mon.top - (sy + mon.h / 2)   # bezel above the screen
+    size = min(5.5, top_border - 0.8)
+    for i, tex in enumerate(sticky_notes):
+        if i == 0:
+            sc.plane((-mon.w / 2 + size / 2 + 1, sy + mon.h / 2 + top_border / 2, sz - 0.45), size, size,
+                     rotation=(0, 0, 4), texture=tex, shadows=False, group="sticky-notes")
+        else:
+            sc.plane((mon.half_width + 0.05, sy - 4, sz - 5), 6, 6, rotation=(0, 90, -5), texture=tex,
+                     shadows=False, group="sticky-notes")
 
 
 def add_old_monitor(sc, x, z, yaw, casing, casing_dark):
@@ -539,7 +549,7 @@ def room_90s(out, rng, mon):
     sc.box((60, 28, -37.4), (10, 1.5, 0.4), "#3a3a3c")
 
     add_monitor(sc, mon, "#d8d6cc", "#a8a69e",
-                sticky_notes=[(3, 4, 6, t_yellow), (2 * mon.half_width - 3, 22, -5, t_pink)])
+                sticky_notes=[t_yellow, t_pink])
     # An older monitor off to the side, a desk lamp and small speakers.
     add_old_monitor(sc, -68, -64, 28, "#d0ccbc", "#a29e90")
     sc.cylinder((80, DESK_Y + 1, -66), 13, 2, "#1c1c1e", roughness=0.35)
@@ -557,7 +567,7 @@ def room_90s(out, rng, mon):
     sc.plane((-55, 115, -88.8), 34, 42.5, texture=t_calendar, roughness=0.6)
     sc.plane((50, 118, -88.8), 21, 27, rotation=(0, 0, 3), texture=t_memo, roughness=0.6)
     sc.plane((72, 110, -88.8), 21, 27, rotation=(0, 0, -4), texture=t_memo, roughness=0.6)
-    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False)
+    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False, group="sticky-notes")
 
     # Mouse mat and mouse, phone, styrofoam cup and a stack of paper.
     sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#6a5aa8", roughness=0.8)
@@ -588,7 +598,7 @@ PICTURE_W, PICTURE_H = 2400, 1500
 PICTURE_FOV = 40
 
 
-def picture(name, mon, fill):
+def picture(name, mon, fill, has_notes):
     target = (0, 95, mon.z)
     distance = mon.distance - 10
 
@@ -604,10 +614,15 @@ def picture(name, mon, fill):
     # The monitor and its stand, which stay in view however the window is shaped.
     mx0, my0 = project(-mon.half_width - 2, mon.top + 1, mon.z)
     mx1, my1 = project(mon.half_width + 2, DESK_Y, mon.z - 1)
-    return {"image": "office-%s-%s.jpg" % (name, mon.name), "size": [PICTURE_W, PICTURE_H], "fill": fill,
+    info = {"image": "office-%s-%s.jpg" % (name, mon.name),
+            "size": [PICTURE_W, PICTURE_H], "fill": fill,
             "camera": {"target": list(target), "distance": distance, "yaw": 0, "pitch": 0},
             "screen": [round(x0, 1), round(y0, 1), round(x1 - x0, 1), round(y1 - y0, 1)],
             "monitor": [round(mx0, 1), round(my0, 1), round(mx1 - mx0, 1), round(my1 - my0, 1)]}
+    if has_notes:
+        # The same picture with the sticky notes turned off.
+        info["imageWithoutNotes"] = "office-%s-%s-nonotes.jpg" % (name, mon.name)
+    return info
 
 
 def finish(sc, mon, background, ambient, fill):
@@ -622,7 +637,7 @@ def finish(sc, mon, background, ambient, fill):
                    "minDistance": 30, "maxDistance": 280,
                    "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
         "screen": {"position": [0, mon.y, mon.z], "size": [mon.w, mon.h], "rotation": quat()},
-        "picture": picture(sc.name, mon, fill),
+        "picture": picture(sc.name, mon, fill, any(o.get("group") == "sticky-notes" for o in sc.objects)),
         # Light cast by the screen, in the profile's text colour.
         "screenGlow": {"position": [0, mon.y, mon.z + 15], "intensity": 0.6, "range": 120},
         "lights": sc.lights,

@@ -69,7 +69,8 @@
    143.9,
    1060.5,
    1085.3
-  ]
+  ],
+  "imageWithoutNotes": "office-90s-standard-nonotes.jpg"
  },
  "screenGlow": {
   "position": [
@@ -1652,20 +1653,20 @@
   {
    "shape": "plane",
    "position": [
-    -17.0,
-    115.0,
-    -41.95
+    -11.5,
+    116.3,
+    -42.05
    ],
    "size": [
-    6.0,
-    6.0,
+    4.6,
+    4.6,
     1.0
    ],
    "rotation": [
     0.0,
     0.0,
-    0.052336,
-    0.99863
+    0.034899,
+    0.999391
    ],
    "color": "#ffffff",
    "roughness": 0.7,
@@ -1675,14 +1676,15 @@
    "repeat": [
     1.0,
     1.0
-   ]
+   ],
+   "group": "sticky-notes"
   },
   {
    "shape": "plane",
    "position": [
-    17.0,
-    97.0,
-    -41.95
+    20.05,
+    98.5,
+    -46.6
    ],
    "size": [
     6.0,
@@ -1690,10 +1692,10 @@
     1.0
    ],
    "rotation": [
-    0.0,
-    0.0,
-    -0.043619,
-    0.999048
+    0.030844,
+    0.706434,
+    -0.030844,
+    0.706434
    ],
    "color": "#ffffff",
    "roughness": 0.7,
@@ -1703,7 +1705,8 @@
    "repeat": [
     1.0,
     1.0
-   ]
+   ],
+   "group": "sticky-notes"
   },
   {
    "shape": "box",
@@ -2166,7 +2169,8 @@
    "repeat": [
     1.0,
     1.0
-   ]
+   ],
+   "group": "sticky-notes"
   },
   {
    "shape": "box",

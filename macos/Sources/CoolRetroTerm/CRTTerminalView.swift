@@ -391,7 +391,11 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
         officeView.show(officeActive ? store.officeScene : .off, monitor: store.officeMonitor)
         officeView.lookAround = store.officeLookAround
-        officePicture.show(officePictureActive ? store.officeScene : .off, monitor: store.officeMonitor)
+        officeView.zoom = store.officeZoom
+        officeView.stickyNotes = store.officeStickyNotes
+        officePicture.zoom = store.officeZoom
+        officePicture.show(officePictureActive ? store.officeScene : .off, monitor: store.officeMonitor,
+                           stickyNotes: store.officeStickyNotes)
         officeView.glowColor = NSColor(rgb: profile.effectiveFontColor)
         overlay.isHidden = !showsEffects || officeActive
         terminal.suppressesOwnDrawing = showsEffects

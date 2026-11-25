@@ -257,6 +257,8 @@ final class ProfileStore {
     private(set) var sharedOfficeScene = OfficeScene.off
     private(set) var sharedOffice3D = true
     private(set) var sharedOfficeMonitor = OfficeMonitor.wide
+    private(set) var sharedOfficeZoom = OfficeZoom.desk
+    private(set) var sharedOfficeStickyNotes = true
     private(set) var sharedOfficeLookAround = true
 
     private init() {
@@ -322,6 +324,8 @@ final class ProfileStore {
         sharedOfficeScene = OfficeScene(rawValue: settings["officeScene"] as? String ?? "") ?? .off
         if let b = settings["office3D"] as? Bool { sharedOffice3D = b }
         sharedOfficeMonitor = settings["officeMonitor"] as? String == "standard" ? .standard : .wide
+        sharedOfficeZoom = (settings["officeZoom"] as? String).flatMap(OfficeZoom.init(rawValue:)) ?? .desk
+        if let b = settings["officeStickyNotes"] as? Bool { sharedOfficeStickyNotes = b }
         if let override = ProcessInfo.processInfo.environment["CRT_OFFICE_MONITOR"],
            let monitor = OfficeMonitor(rawValue: override) {
             sharedOfficeMonitor = monitor   // used for CI screenshots
@@ -550,6 +554,18 @@ final class ProfileStore {
     var officeMonitor: OfficeMonitor {
         get { sharedOfficeMonitor }
         set { sharedOfficeMonitor = newValue; writeAppSetting("officeMonitor", newValue.rawValue) }
+    }
+
+    /// How far back the office mode view starts. Shared with the Qt app.
+    var officeZoom: OfficeZoom {
+        get { sharedOfficeZoom }
+        set { sharedOfficeZoom = newValue; writeAppSetting("officeZoom", newValue.rawValue) }
+    }
+
+    /// Sticky notes on the monitor and walls in office mode. Shared with the Qt app.
+    var officeStickyNotes: Bool {
+        get { sharedOfficeStickyNotes }
+        set { sharedOfficeStickyNotes = newValue; writeAppSetting("officeStickyNotes", newValue) }
     }
 
     /// Let the user move the camera in the 3D room. Shared with the Qt app.

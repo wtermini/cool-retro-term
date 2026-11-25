@@ -48,6 +48,16 @@ View3D {
     property color glowColor: "white"
     /// Let the user move the camera (and the gentle drift and parallax).
     property bool lookAround: true
+    /// Show the sticky notes.
+    property bool stickyNotes: true
+    /// How far back the camera starts: "close" (the screen fills most of the
+    /// window), "desk" or "room".
+    property string zoom: "desk"
+    // Computed here rather than in bindings, so a change of zoom always
+    // uses the new value.
+    function zoomFactor() { return pictureView ? 1 : zoom === "close" ? 0.55 : zoom === "room" ? 1.9 : 1 }
+    function zoomPitch() { return !pictureView && zoom === "room" ? -8 : 0 }
+    onZoomChanged: resetView()
     /// Show the room straight on, as in the 2D picture (used to render it).
     property bool pictureView: false
     readonly property bool moving: lookAround && !pictureView
@@ -68,9 +78,11 @@ View3D {
         if (!viewInfo)
             return
         yaw = viewInfo.yaw
-        pitch = viewInfo.pitch
-        distance = viewInfo.distance
+        pitch = viewInfo.pitch + zoomPitch()
+        distance = viewInfo.distance * zoomFactor()
     }
+    Behavior on distance { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+    Behavior on pitch { enabled: !orbit.active; NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
     onMovingChanged: if (!moving) resetView()
     onPictureViewChanged: resetView()
 
@@ -191,6 +203,7 @@ View3D {
         delegate: Model {
             id: object
             required property var modelData
+            visible: modelData.group !== "sticky-notes" || view.stickyNotes
             readonly property var shapes: ({ "box": "#Cube", "cylinder": "#Cylinder",
                                              "sphere": "#Sphere", "plane": "#Rectangle" })
             source: shapes[modelData.shape]

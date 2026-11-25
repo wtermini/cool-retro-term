@@ -28,7 +28,10 @@ Window {
     height: 1500
     visible: true
 
-    readonly property var scenes: [["80s", "standard"], ["80s", "wide"], ["90s", "standard"], ["90s", "wide"]]
+    // [room, monitor, sticky notes]
+    readonly property var scenes: [["80s", "standard", true], ["80s", "wide", true],
+                                   ["90s", "standard", true], ["90s", "wide", true],
+                                   ["90s", "standard", false], ["90s", "wide", false]]
     property int index: 0
     readonly property string outDir: Qt.application.arguments[Qt.application.arguments.length - 1]
 
@@ -39,6 +42,7 @@ Window {
         anchors.fill: parent
         scene: window.scenes[window.index][0]
         monitor: window.scenes[window.index][1]
+        stickyNotes: window.scenes[window.index][2]
         screenItem: tube
         pictureView: true
         lookAround: false
@@ -50,7 +54,8 @@ Window {
         running: true
         repeat: true
         onTriggered: office.grabToImage(function(result) {
-            const path = window.outDir + "/office-" + window.scenes[window.index].join("-") + ".png"
+            const s = window.scenes[window.index]
+            const path = window.outDir + "/office-" + s[0] + "-" + s[1] + (s[2] ? "" : "-nonotes") + ".png"
             result.saveToFile(path)
             console.log("rendered", path)
             if (window.index + 1 >= window.scenes.length)

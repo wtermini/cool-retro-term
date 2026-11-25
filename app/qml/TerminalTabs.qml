@@ -105,6 +105,14 @@ Item {
         editingIndex = currentIndex
     }
 
+    /// Opens the colour picker for any colour, for the tab at `index`.
+    function chooseCustomColor(index) {
+        const tab = tabsModel.get(index)
+        customColorDialog.tabIndex = index
+        customColorDialog.selectedColor = tab && tabColor(tab) !== "" ? tabColor(tab) : "#007aff"
+        customColorDialog.open()
+    }
+
     function setTabColor(index, color) {
         tabsModel.setProperty(index, "userColor", color)
     }
@@ -327,6 +335,8 @@ Item {
                 visible: terminalArea.office2D
                 scene: terminalArea.officeMode ? appSettings.officeScene : "80s"
                 monitor: appSettings.officeMonitor
+                zoom: appSettings.officeZoom
+                stickyNotes: appSettings.officeStickyNotes
             }
 
             StackLayout {
@@ -379,6 +389,8 @@ Item {
                     item.screenItem = stack
                     item.scene = Qt.binding(() => appSettings.officeScene)
                     item.monitor = Qt.binding(() => appSettings.officeMonitor)
+                    item.zoom = Qt.binding(() => appSettings.officeZoom)
+                    item.stickyNotes = Qt.binding(() => appSettings.officeStickyNotes)
                     item.time = Qt.binding(() => timeManager.time)
                     item.glowColor = Qt.binding(() => appSettings.fontColor)
                     item.lookAround = Qt.binding(() => appSettings.officeLookAround)

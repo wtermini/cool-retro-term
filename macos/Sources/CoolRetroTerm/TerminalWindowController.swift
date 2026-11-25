@@ -258,6 +258,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
             item.state = session.tabColorName == name ? .on : .off
             colors.addItem(item)
         }
+        colors.addItem(.separator())
+        let custom = NSMenuItem(title: "Custom…", action: #selector(menuCustomColor(_:)), keyEquivalent: "")
+        custom.representedObject = session
+        custom.target = self
+        custom.state = session.tabColorName == "Custom" ? .on : .off
+        colors.addItem(custom)
         let colorItem = NSMenuItem(title: "Tab Color", action: nil, keyEquivalent: "")
         colorItem.submenu = colors
         menu.addItem(colorItem)
@@ -286,6 +292,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, TabB
     @objc private func menuColor(_ sender: NSMenuItem) {
         guard let choice = sender.representedObject as? TabColorChoice else { return }
         choice.session?.setTabColor(choice.name.flatMap(TabColorPalette.color(named:)), name: choice.name)
+    }
+
+    /// Any colour, from the colour panel (Shell ▸ Tab Color ▸ Custom… does
+    /// the same for the current tab).
+    @objc private func menuCustomColor(_ sender: NSMenuItem) {
+        guard let session = sender.representedObject as? TerminalSession,
+              let index = sessions.firstIndex(where: { $0 === session }) else { return }
+        select(index)
+        NSApp.sendAction(#selector(AppDelegate.chooseCustomTabColor(_:)), to: nil, from: self)
     }
 
     @objc private func menuClose(_ sender: NSMenuItem) {

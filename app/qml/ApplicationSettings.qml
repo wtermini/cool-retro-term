@@ -52,6 +52,8 @@ QtObject {
     property bool office3D: true               // office mode in 3D (a picture when off)
     property string officeMonitor: "wide"      // office mode monitor: "standard" (4:3) or "wide" (16:10)
     property bool officeLookAround: true       // move the camera in the 3D room
+    property string officeZoom: "desk"         // office mode view: "close", "desk" or "room"
+    property bool officeStickyNotes: true      // sticky notes on the monitor and walls
     onSecureKeyboardEntryChanged: secureInput.enabled = secureKeyboardEntry
 
     property bool showTerminalSize: true
@@ -185,6 +187,8 @@ QtObject {
             "office3D": office3D,
             "officeMonitor": officeMonitor,
             "officeLookAround": officeLookAround,
+            "officeZoom": officeZoom,
+            "officeStickyNotes": officeStickyNotes,
             "bloomQuality": bloomQuality,
             "burnInQuality": burnInQuality,
             "useCustomCommand": useCustomCommand,
@@ -282,6 +286,8 @@ QtObject {
         office3D = settings.office3D !== undefined ? settings.office3D : office3D
         officeMonitor = settings.officeMonitor === "standard" ? "standard" : "wide"
         officeLookAround = settings.officeLookAround !== undefined ? settings.officeLookAround : officeLookAround
+        officeZoom = ["close", "desk", "room"].indexOf(settings.officeZoom) >= 0 ? settings.officeZoom : "desk"
+        officeStickyNotes = settings.officeStickyNotes !== undefined ? settings.officeStickyNotes : officeStickyNotes
 
         bloomQuality = settings.bloomQuality !== undefined ? settings.bloomQuality : bloomQuality
         burnInQuality = settings.burnInQuality

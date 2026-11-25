@@ -118,6 +118,9 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   - Pick the monitor in View ▸ Office Mode: a **Widescreen Monitor
     (16:10)**, a big, deep workstation CRT on a base plate (the default), or
     a **Standard Monitor (4:3)**.
+  - Three views: **Close Up** (the screen fills most of the window), **At
+    the Desk** and **Whole Room**. The camera glides between them.
+  - **Sticky Notes** turns the notes on the monitor and walls on or off.
   - With **View ▸ Office Mode ▸ Look Around** on, **Option-drag** looks
     around the room, **Option-scroll** or **pinch** zooms, and
     **Option-double-click** (or Reset View) goes back to the desk; the view
@@ -164,6 +167,8 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
   ```
 
   A colour picked from the menu always wins over one set by a program.
+  **Custom…** (in the tab's right-click menu and Shell ▸ Tab Color) picks
+  any colour.
 
 ## Efficiency
 

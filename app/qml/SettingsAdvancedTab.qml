@@ -90,6 +90,20 @@ ColumnLayout {
                     onActivated: (index) => appSettings.officeMonitor = monitors[index]
                 }
             }
+            RowLayout {
+                Label { text: qsTr("Office View") }
+                ComboBox {
+                    readonly property var zooms: ["close", "desk", "room"]
+                    model: [qsTr("Close up"), qsTr("At the desk"), qsTr("Whole room")]
+                    currentIndex: Math.max(zooms.indexOf(appSettings.officeZoom), 0)
+                    onActivated: (index) => appSettings.officeZoom = zooms[index]
+                }
+            }
+            CheckBox {
+                text: qsTr("Sticky notes")
+                checked: appSettings.officeStickyNotes
+                onCheckedChanged: appSettings.officeStickyNotes = checked
+            }
             CheckBox {
                 text: qsTr("Office Mode in 3D (a picture of the room when off)")
                 checked: appSettings.office3D

@@ -159,6 +159,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeMonitor = monitor
     }
 
+    @objc func chooseOfficeZoom(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let zoom = OfficeZoom(rawValue: raw) else { return }
+        ProfileStore.shared.officeZoom = zoom
+    }
+
+    @objc func toggleOfficeStickyNotes(_ sender: Any?) {
+        ProfileStore.shared.officeStickyNotes.toggle()
+    }
+
     @objc func toggleOffice3D(_ sender: Any?) {
         ProfileStore.shared.office3D.toggle()
     }
@@ -256,6 +265,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeScene.rawValue ? .on : .off
         case #selector(chooseOfficeMonitor(_:)):
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeMonitor.rawValue ? .on : .off
+        case #selector(chooseOfficeZoom(_:)):
+            menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeZoom.rawValue ? .on : .off
+        case #selector(toggleOfficeStickyNotes(_:)):
+            menuItem.state = ProfileStore.shared.officeStickyNotes ? .on : .off
         case #selector(toggleOffice3D(_:)):
             menuItem.state = ProfileStore.shared.office3D ? .on : .off
         case #selector(toggleOfficeLookAround(_:)):
@@ -405,6 +418,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             office.addItem(entry)
         }
         office.addItem(.separator())
+        for zoom in OfficeZoom.allCases {
+            let entry = item(zoom.title, #selector(chooseOfficeZoom(_:)))
+            entry.representedObject = zoom.rawValue
+            office.addItem(entry)
+        }
+        office.addItem(.separator())
+        office.addItem(item("Sticky Notes", #selector(toggleOfficeStickyNotes(_:))))
         office.addItem(item("3D Room", #selector(toggleOffice3D(_:))))
         office.addItem(item("Look Around", #selector(toggleOfficeLookAround(_:))))
         office.addItem(item("Reset View", #selector(resetOfficeView(_:))))

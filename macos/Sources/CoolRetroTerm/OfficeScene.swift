@@ -58,6 +58,33 @@ enum OfficeMonitor: String, CaseIterable {
     }
 }
 
+/// How far back the office mode camera starts. Shared with the Qt app
+/// (`officeZoom` in its settings).
+enum OfficeZoom: String, CaseIterable {
+    case close
+    case desk
+    case room
+
+    var title: String {
+        switch self {
+        case .close: return "Close Up"
+        case .desk: return "At the Desk"
+        case .room: return "Whole Room"
+        }
+    }
+
+    /// Multiplies the room's starting camera distance.
+    var distanceFactor: Float {
+        switch self {
+        case .close: return 0.55
+        case .desk: return 1
+        case .room: return 1.9
+        }
+    }
+
+    var pitchOffset: Float { self == .room ? -8 : 0 }
+}
+
 /// A room, as written by scripts/generate-office-scenes.py.
 struct OfficeRoom: Decodable {
     struct Camera: Decodable {
@@ -81,6 +108,7 @@ struct OfficeRoom: Decodable {
     /// pixels, from the top left.
     struct Picture: Decodable {
         var image: String
+        var imageWithoutNotes: String?
         var size: [CGFloat]
         var fill: String
         var screen: [CGFloat]
@@ -98,9 +126,10 @@ struct OfficeRoom: Decodable {
         var texture: String?
         var repeats: [Float]?
         var emissive: String?
+        var group: String?
 
         enum CodingKeys: String, CodingKey {
-            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive
+            case shape, position, size, rotation, color, roughness, metalness, shadows, texture, emissive, group
             case repeats = "repeat"
         }
     }
@@ -147,15 +176,21 @@ final class OfficePictureView: NSView {
     var fillColor: NSColor { picture.map { NSColor(hex: $0.fill) } ?? .black }
 
     private var monitor: OfficeMonitor = .wide
+    private var stickyNotes = true
+    /// "Close up": the monitor fills the view; "at the desk": the picture
+    /// fills it, around the monitor; "whole room": all of the picture.
+    var zoom: OfficeZoom = .desk
 
-    func show(_ scene: OfficeScene, monitor: OfficeMonitor) {
-        guard scene != officeScene || monitor != self.monitor else { return }
+    func show(_ scene: OfficeScene, monitor: OfficeMonitor, stickyNotes: Bool) {
+        guard scene != officeScene || monitor != self.monitor || stickyNotes != self.stickyNotes else { return }
         officeScene = scene
         self.monitor = monitor
+        self.stickyNotes = stickyNotes
         picture = OfficeRoom.load(scene, monitor: monitor)?.picture
         isHidden = picture == nil
         if let picture {
-            imageLayer.contents = NSImage(contentsOf: AppResources.url("Office/\(picture.image)"))
+            let name = !stickyNotes ? picture.imageWithoutNotes ?? picture.image : picture.image
+            imageLayer.contents = NSImage(contentsOf: AppResources.url("Office/\(name)"))
             layer?.backgroundColor = NSColor(hex: picture.fill).cgColor
         }
         needsLayout = true
@@ -169,8 +204,13 @@ final class OfficePictureView: NSView {
         let size = bounds.size
         let imageSize = CGSize(width: picture.size[0], height: picture.size[1])
         let m = CGRect(x: picture.monitor[0], y: picture.monitor[1], width: picture.monitor[2], height: picture.monitor[3])
-        var scale = max(size.width / imageSize.width, size.height / imageSize.height)
-        scale = min(scale, size.width / m.width, size.height / m.height)
+        let fitMonitor = min(size.width / m.width, size.height / m.height)
+        let scale: CGFloat
+        switch zoom {
+        case .close: scale = fitMonitor
+        case .room: scale = min(size.width / imageSize.width, size.height / imageSize.height)
+        case .desk: scale = min(max(size.width / imageSize.width, size.height / imageSize.height), fitMonitor)
+        }
         let w = imageSize.width * scale
         let h = imageSize.height * scale
         func offset(_ view: CGFloat, _ image: CGFloat, _ centre: CGFloat) -> CGFloat {
@@ -203,6 +243,17 @@ final class OfficeSceneView: SCNView {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var distance: Float = 100
+    /// Where `distance` is heading; it eases there a little each frame.
+    private var targetDistance: Float = 100
+    private var noteNodes: [SCNNode] = []
+
+    var zoom: OfficeZoom = .desk {
+        didSet { if zoom != oldValue { resetView() } }
+    }
+
+    var stickyNotes = true {
+        didSet { noteNodes.forEach { $0.isHidden = !stickyNotes } }
+    }
     private var pointer = SIMD2<Float>(0, 0)
     private var time: Float = 0
     private var orbitStart: (point: NSPoint, yaw: Float, pitch: Float)?
@@ -262,6 +313,8 @@ final class OfficeSceneView: SCNView {
         scene = build(room)
         pointOfView = cameraNode
         resetView()
+        distance = targetDistance
+        updateCamera()
     }
 
     var screenTexture: MTLTexture? {
@@ -281,19 +334,22 @@ final class OfficeSceneView: SCNView {
     func resetView() {
         guard let camera = room?.camera else { return }
         yaw = camera.yaw
-        pitch = camera.pitch
-        distance = camera.distance
+        pitch = camera.pitch + zoom.pitchOffset
+        targetDistance = camera.distance * zoom.distanceFactor
         updateCamera()
     }
 
     /// Called at the effects frame rate, with seconds since launch.
     func tick(time: Double) {
         self.time = Float(time)
+        distance += (targetDistance - distance) * 0.35
+        if abs(targetDistance - distance) < 0.05 { distance = targetDistance }
         updateCamera()
     }
 
     private func build(_ room: OfficeRoom) -> SCNScene {
         let scene = SCNScene()
+        noteNodes = []
         scene.background.contents = NSColor(hex: room.background)
         var textures: [String: NSImage] = [:]
         func texture(_ name: String) -> NSImage? {
@@ -342,6 +398,10 @@ final class OfficeSceneView: SCNView {
             node.simdScale = vector(object.size)
             node.simdOrientation = quaternion(object.rotation)
             node.castsShadow = object.shadows
+            if object.group == "sticky-notes" {
+                node.isHidden = !stickyNotes
+                noteNodes.append(node)
+            }
             scene.rootNode.addChildNode(node)
         }
 
@@ -508,7 +568,7 @@ final class OfficeSceneView: SCNView {
     override func scrollWheel(with event: NSEvent) {
         if lookAround, event.modifierFlags.contains(.option), let camera = room?.camera {
             let delta = Float(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 30 : event.scrollingDeltaY)
-            distance = clamp(distance * pow(0.9, delta), camera.minDistance, camera.maxDistance)
+            targetDistance = clamp(targetDistance * pow(0.9, delta), camera.minDistance, camera.maxDistance)
             updateCamera()
             return
         }
@@ -517,7 +577,7 @@ final class OfficeSceneView: SCNView {
 
     override func magnify(with event: NSEvent) {
         guard lookAround, let camera = room?.camera else { return }
-        distance = clamp(distance / Float(1 + event.magnification), camera.minDistance, camera.maxDistance)
+        targetDistance = clamp(targetDistance / Float(1 + event.magnification), camera.minDistance, camera.maxDistance)
         updateCamera()
     }
 
