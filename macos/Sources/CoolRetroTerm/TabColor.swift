@@ -31,6 +31,9 @@ enum TabColorPalette {
         ("Blue", .systemBlue),
         ("Purple", .systemPurple),
         ("Pink", .systemPink),
+        ("Brown", .systemBrown),
+        // The office monitors' casing colour; the same value as the Qt app's.
+        ("Beige", NSColor(srgbRed: 0xd9 / 255.0, green: 0xc9 / 255.0, blue: 0xa3 / 255.0, alpha: 1)),
         ("Gray", .systemGray),
     ]
 

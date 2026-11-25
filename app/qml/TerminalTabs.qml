@@ -45,6 +45,8 @@ Item {
         { name: qsTr("Blue"), color: "#007aff" },
         { name: qsTr("Purple"), color: "#af52de" },
         { name: qsTr("Pink"), color: "#ff2d55" },
+        { name: qsTr("Brown"), color: "#a2845e" },
+        { name: qsTr("Beige"), color: "#d9c9a3" },
         { name: qsTr("Gray"), color: "#8e8e93" }
     ]
 
