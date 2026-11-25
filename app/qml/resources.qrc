@@ -25,10 +25,6 @@
         <file>images/crt256.png</file>
         <file>OfficeScene.qml</file>
         <file>OfficePicture.qml</file>
-        <file>office/aero-aurora.jpg</file>
-        <file>office/aero-sky.jpg</file>
-        <file>office/aero-tiles.png</file>
-        <file>office/aero-wall.jpg</file>
         <file>office/blinds.jpg</file>
         <file>office/calendar-picture.jpg</file>
         <file>office/calendar.jpg</file>
@@ -41,6 +37,12 @@
         <file>office/floppy-0.png</file>
         <file>office/floppy-1.png</file>
         <file>office/floppy-2.png</file>
+        <file>office/gloss-aurora.jpg</file>
+        <file>office/gloss-sky.jpg</file>
+        <file>office/gloss-tiles.png</file>
+        <file>office/gloss-wall.jpg</file>
+        <file>office/greenbar.jpg</file>
+        <file>office/keyboard-70s.png</file>
         <file>office/keyboard-beige.png</file>
         <file>office/keyboard-black.png</file>
         <file>office/keyboard-grey.png</file>
@@ -53,6 +55,12 @@
         <file>office/office-2000s-wide-nonotes.jpg</file>
         <file>office/office-2000s-wide.jpg</file>
         <file>office/office-2000s-wide.json</file>
+        <file>office/office-70s-standard-nonotes.jpg</file>
+        <file>office/office-70s-standard.jpg</file>
+        <file>office/office-70s-standard.json</file>
+        <file>office/office-70s-wide-nonotes.jpg</file>
+        <file>office/office-70s-wide.jpg</file>
+        <file>office/office-70s-wide.json</file>
         <file>office/office-80s-standard-nonotes.jpg</file>
         <file>office/office-80s-standard.jpg</file>
         <file>office/office-80s-standard.json</file>
@@ -65,18 +73,21 @@
         <file>office/office-90s-wide-nonotes.jpg</file>
         <file>office/office-90s-wide.jpg</file>
         <file>office/office-90s-wide.json</file>
-        <file>office/office-aero-standard-nonotes.jpg</file>
-        <file>office/office-aero-standard.jpg</file>
-        <file>office/office-aero-standard.json</file>
-        <file>office/office-aero-wide-nonotes.jpg</file>
-        <file>office/office-aero-wide.jpg</file>
-        <file>office/office-aero-wide.json</file>
         <file>office/office-carpet.jpg</file>
+        <file>office/office-gloss-standard-nonotes.jpg</file>
+        <file>office/office-gloss-standard.jpg</file>
+        <file>office/office-gloss-standard.json</file>
+        <file>office/office-gloss-wide-nonotes.jpg</file>
+        <file>office/office-gloss-wide.jpg</file>
+        <file>office/office-gloss-wide.json</file>
         <file>office/office-wall.jpg</file>
         <file>office/paint-2000s.jpg</file>
+        <file>office/paint-70s.jpg</file>
         <file>office/poster-synergy.jpg</file>
         <file>office/poster.jpg</file>
+        <file>office/raised-floor.png</file>
         <file>office/shag-carpet.jpg</file>
+        <file>office/steel-desk.jpg</file>
         <file>office/sticky-green.png</file>
         <file>office/sticky-pink.png</file>
         <file>office/sticky-yellow.png</file>

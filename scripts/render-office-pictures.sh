@@ -17,7 +17,8 @@ fi
 eval "${RUN:-}" '"$QML" "$REPO/scripts/render-office-pictures.qml" -- "$TMP"' || true
 for scene in 80s-standard 80s-wide 90s-standard 90s-wide 80s-standard-nonotes 80s-wide-nonotes 90s-standard-nonotes 90s-wide-nonotes \
              2000s-standard 2000s-wide 2000s-standard-nonotes 2000s-wide-nonotes \
-             aero-standard aero-wide aero-standard-nonotes aero-wide-nonotes; do
+             gloss-standard gloss-wide gloss-standard-nonotes gloss-wide-nonotes \
+             70s-standard 70s-wide 70s-standard-nonotes 70s-wide-nonotes; do
     [ -f "$TMP/office-$scene.png" ] || { echo "rendering office-$scene failed" >&2; exit 1; }
     python3 -c "
 import sys

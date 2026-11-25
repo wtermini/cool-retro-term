@@ -84,10 +84,11 @@ MenuBar {
         Menu {
             title: qsTr("Office Mode")
             MenuItem { text: qsTr("Off"); checkable: true; checked: appSettings.officeScene === ""; onTriggered: appSettings.officeScene = "" }
+            MenuItem { text: qsTr("70s Mainframe"); checkable: true; checked: appSettings.officeScene === "70s"; onTriggered: appSettings.officeScene = "70s" }
             MenuItem { text: qsTr("80s Den"); checkable: true; checked: appSettings.officeScene === "80s"; onTriggered: appSettings.officeScene = "80s" }
             MenuItem { text: qsTr("90s Cubicle"); checkable: true; checked: appSettings.officeScene === "90s"; onTriggered: appSettings.officeScene = "90s" }
             MenuItem { text: qsTr("2000s Office"); checkable: true; checked: appSettings.officeScene === "2000s"; onTriggered: appSettings.officeScene = "2000s" }
-            MenuItem { text: qsTr("Frutiger Aero"); checkable: true; checked: appSettings.officeScene === "aero"; onTriggered: appSettings.officeScene = "aero" }
+            MenuItem { text: qsTr("Glossy 2000s"); checkable: true; checked: appSettings.officeScene === "gloss"; onTriggered: appSettings.officeScene = "gloss" }
             MenuSeparator { }
             MenuItem { text: qsTr("Standard Monitor (4:3)"); checkable: true; checked: appSettings.officeMonitor === "standard"; onTriggered: appSettings.officeMonitor = "standard" }
             MenuItem { text: qsTr("Widescreen Monitor (16:10)"); checkable: true; checked: appSettings.officeMonitor === "wide"; onTriggered: appSettings.officeMonitor = "wide" }

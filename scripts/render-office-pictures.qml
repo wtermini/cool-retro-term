@@ -35,8 +35,10 @@ Window {
                                    ["90s", "standard", false], ["90s", "wide", false],
                                    ["2000s", "standard", true], ["2000s", "wide", true],
                                    ["2000s", "standard", false], ["2000s", "wide", false],
-                                   ["aero", "standard", true], ["aero", "wide", true],
-                                   ["aero", "standard", false], ["aero", "wide", false]]
+                                   ["gloss", "standard", true], ["gloss", "wide", true],
+                                   ["gloss", "standard", false], ["gloss", "wide", false],
+                                   ["70s", "standard", true], ["70s", "wide", true],
+                                   ["70s", "standard", false], ["70s", "wide", false]]
     property int index: 0
     readonly property string outDir: Qt.application.arguments[Qt.application.arguments.length - 1]
 

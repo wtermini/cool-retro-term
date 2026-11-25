@@ -32,18 +32,20 @@ import simd
 /// scripts/generate-office-scenes.py.
 enum OfficeScene: String, CaseIterable {
     case off = ""
+    case seventies = "70s"
     case eighties = "80s"
     case nineties = "90s"
     case twoThousands = "2000s"
-    case aero = "aero"
+    case gloss = "gloss"
 
     var title: String {
         switch self {
         case .off: return "Off"
+        case .seventies: return "70s Mainframe"
         case .eighties: return "80s Den"
         case .nineties: return "90s Cubicle"
         case .twoThousands: return "2000s Office"
-        case .aero: return "Frutiger Aero"
+        case .gloss: return "Glossy 2000s"
         }
     }
 }

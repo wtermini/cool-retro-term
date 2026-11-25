@@ -324,7 +324,7 @@ Item {
             // shown on the monitor in a 3D room (OfficeScene.qml), drawn over
             // it. In 2D (3D turned off, Qt Quick 3D missing or no GPU), it's
             // placed over the monitor in a picture of the room (OfficePicture.qml).
-            readonly property bool officeMode: ["80s", "90s", "2000s", "aero"].indexOf(appSettings.officeScene) >= 0
+            readonly property bool officeMode: ["70s", "80s", "90s", "2000s", "gloss"].indexOf(appSettings.officeScene) >= 0
             readonly property bool can3D: GraphicsInfo.api !== GraphicsInfo.Software
                                           && officeLoader.status !== Loader.Error
             readonly property bool office3D: officeMode && appSettings.office3D && can3D

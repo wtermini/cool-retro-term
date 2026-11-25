@@ -447,6 +447,31 @@ def glossy_tiles():
     return from_array(a)
 
 
+def raised_floor():
+    """Computer-room raised floor tiles: light grey, 60 cm square."""
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array([200, 202, 198], np.float32)
+    a[:, :4] = [140, 142, 138]
+    a[:4, :] = [140, 142, 138]
+    a[18:30, 18:30] = [170, 172, 168]   # the lifting point
+    return from_array(a)
+
+
+def greenbar():
+    """Fan-fold printer paper with green bars and sprocket holes."""
+    w, h = 256, 384
+    img = Image.new("RGB", (w, h), (250, 250, 244))
+    d = ImageDraw.Draw(img)
+    for k in range(0, h, 48):
+        d.rectangle([20, k, w - 20, k + 24], fill=(206, 234, 206))
+    for k in range(8, h, 16):
+        d.ellipse([5, k, 13, k + 8], fill=(220, 220, 214))
+        d.ellipse([w - 13, k, w - 5, k + 8], fill=(220, 220, 214))
+    for k in range(12):
+        y = 10 + k * 30
+        d.rectangle([30, y, 30 + int(80 + 100 * ((k * 37) % 7) / 7), y + 5], fill=(90, 90, 96))
+    return img
+
+
 def ceiling_light():
     img = Image.new("RGB", (256, 256), (255, 255, 250))
     d = ImageDraw.Draw(img)
@@ -486,6 +511,43 @@ LCD_STANDARD = Monitor("standard", 34.5, 25.9, DESK_Y + 9 + 4 + 25.9 / 2, -38, 1
 LCD_STANDARD.lcd = (2.2, 2.5, 4)    # bezel: sides, top, bottom
 LCD_WIDE = Monitor("wide", 47.4, 29.6, DESK_Y + 9 + 3.5 + 29.6 / 2, -38, 25.7, DESK_Y + 9 + 3.5 + 29.6 + 2.2, 106)
 LCD_WIDE.lcd = (2.0, 2.2, 3.5)
+
+
+# Video terminals for the 70s room: the same screens as the CRT monitors,
+# in a chunky two-tone case (Widescreen is a wide, 132-column-style model).
+TERM_STANDARD = Monitor("standard", 29.6, 22.2, DESK_Y + 27.5, -41.6, (29.6 + 14) / 2,
+                        DESK_Y + 27.5 + 1 + (22.2 + 16) / 2, 95)
+TERM_WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 31, -29.6, (47.0 + 14) / 2, DESK_Y + 31 + 1 + (29.4 + 16) / 2, 110)
+
+
+def add_terminal(sc, mon, front, body, base, sticky_notes=()):
+    """A 70s video terminal: a cream front panel round the screen, a deep
+    burnt-orange body and a plinth; places for notes on the panel's top
+    corners and the body's sides."""
+    sy, sz = mon.y, mon.z
+    width, height = mon.w + 14, mon.h + 16
+    sc.box((0, sy + 1, sz - 3.75), (width, height, 6.5), front, roughness=0.5)
+    sc.box((0, sy, sz - 22), (width - 2, height - 2, 32), body, roughness=0.55)
+    sc.box((0, sy + height / 2 + 0.5, sz - 20), (width - 6, 2, 26), body, roughness=0.55)   # hood
+    bottom = sy + 1 - height / 2
+    sc.box((0, DESK_Y + (bottom - DESK_Y) / 2, sz - 18), (width - 8, bottom - DESK_Y, 26), base, roughness=0.6)
+    sc.box((0, sy, sz - 0.6), (mon.w + 2.6, mon.h + 2.6, 0.6), "#141412", roughness=0.3)
+    # Brightness knob, power switch and its lamp under the screen.
+    chin = sy - mon.h / 2 - 4.5
+    sc.cylinder((width / 2 - 5, chin, sz - 0.2), 2.4, 1, base, rotation=(90, 0, 0), roughness=0.4)
+    sc.box((width / 2 - 10, chin, sz - 0.3), (2.4, 1.6, 0.8), "#303030")
+    sc.sphere((width / 2 - 13, chin, sz - 0.3), (0.9, 0.9, 0.9), "#ff6020", emissive="#ff6020", shadows=False)
+    for i in range(10):   # vents along the top
+        sc.box((-width / 2 + 6 + i * (width - 12) / 9, sy + height / 2 + 1.6, sz - 20), (1.0, 0.3, 14), base,
+               shadows=False)
+    textures = list(sticky_notes) + [None, None]
+    top_border = mon.top - (sy + mon.h / 2)
+    size = min(6, top_border - 1)
+    note_y = sy + mon.h / 2 + top_border / 2
+    sc.spot("bezel-left", (-mon.w / 2 + size / 2 + 1, note_y, sz - 0.45), size, (0, 0, 4), textures[0])
+    sc.spot("right-side", ((width - 2) / 2 + 0.05, sy - 2, sz - 10), 6, (0, 90, -5), textures[1])
+    sc.spot("bezel-right", (mon.w / 2 - size / 2 - 1, note_y, sz - 0.45), size, (0, 0, -3))
+    sc.spot("left-side", (-(width - 2) / 2 - 0.05, sy - 4, sz - 14), 6, (0, -90, 4))
 
 
 def add_lcd(sc, mon, bezel, back, stand, glossy=False, power="#40a0ff", sticky_notes=()):
@@ -765,6 +827,112 @@ def room_90s(out, rng, mon):
     return finish(sc, mon, background="#202228", ambient=("#7c8494", 0.4), fill="#4e5566")
 
 
+def room_70s(out, rng, mon):
+    """A 70s computer room: the mainframe's cabinets behind the desk, tape
+    drives, banks of lights, a line printer, and a video terminal."""
+    sc = Scene("70s")
+    t_floor = save(raised_floor(), out, "raised-floor.png")
+    t_wall = save(laminate(rng, (196, 208, 186)), out, "paint-70s.jpg")
+    t_desk = save(laminate(rng, (132, 146, 130)), out, "steel-desk.jpg")
+    t_ceiling = save(ceiling_tile(rng), out, "ceiling-tile.jpg")
+    t_light = save(ceiling_light(), out, "ceiling-light.jpg")
+    t_paper = save(greenbar(), out, "greenbar.jpg")
+    t_keys = save(keyboard_top((214, 204, 180), (120, 80, 50), (156, 104, 66)), out, "keyboard-70s.png")
+    t_cal = save(calendar_90s(), out, "calendar.jpg")
+    t_n1 = save(sticky(rng, (250, 236, 120)), out, "sticky-yellow.png")
+    t_n2 = save(sticky(rng, (255, 170, 190)), out, "sticky-pink.png")
+    t_n3 = save(sticky(rng, (180, 230, 160)), out, "sticky-green.png")
+
+    # The machine room: raised floor, institutional green walls, fluorescent tubes.
+    sc.plane((0, 0, 0), 700, 700, rotation=(-90, 0, 0), texture=t_floor, repeat=(12, 12), roughness=0.5)
+    sc.plane((0, 250, 0), 700, 700, rotation=(90, 0, 0), texture=t_ceiling, repeat=(12, 12))
+    for x in (-180, 0, 180):
+        for z in (-140, 40):
+            sc.plane((x, 249.5, z), 60, 120, rotation=(90, 0, 0), texture=t_light, emissive="#ffffff", shadows=False)
+    for center, length, rot in (((0, 125, -200), 700, 0), ((0, 125, 350), 700, 180),
+                                ((-350, 125, 75), 550, 90), ((350, 125, 75), 550, -90)):
+        sc.plane(center, length, 250, rotation=(0, rot, 0), texture=t_wall, repeat=(length / 150, 2))
+
+    # A row of the mainframe's cabinets behind the desk.
+    kinds = ["tape", "cpu", "cpu", "tape", "tape", "console", "cpu", "tape"]
+    lamp_colours = ["#ff3020", "#ffb020", "#40ff60", "#ffe080"]
+    for i, kind in enumerate(kinds):
+        x = -210 + i * 60
+        sc.box((x, 92, -125), (58, 184, 50), "#e6dcc4", roughness=0.5)
+        sc.box((x, 184.5, -125), (58, 3, 50), "#6a4a2e", roughness=0.5)
+        sc.box((x, 4, -100.5), (58, 8, 1), "#3a3a3a")
+        if kind == "tape":
+            # Two reels behind smoked glass, and the controls below.
+            sc.box((x, 132, -100.2), (50, 76, 0.6), "#2a2a2e", roughness=0.4)
+            for ry in (150, 116):
+                sc.cylinder((x, ry, -99.5), 26, 1.4, "#c8ccd0", rotation=(90, 0, 0), metalness=0.4, roughness=0.3)
+                sc.cylinder((x, ry, -99.0), 9, 1.6, "#3a3a3e", rotation=(90, 0, 0))
+                sc.cylinder((x, ry, -98.9), 20, 0.4, "#5a3a20", rotation=(90, 0, 0), shadows=False)   # the tape
+            sc.box((x, 132, -98.4), (50, 76, 0.4), "#90a0b0", roughness=0.05, opacity=0.25, shadows=False)
+            for k in range(4):
+                sc.box((x - 15 + k * 10, 82, -99.6), (6, 4, 1.4), "#d0d0c8")
+        else:
+            # A panel of lights, and switches below it.
+            sc.box((x, 150, -100.2), (50, 44, 0.6), "#26303a", roughness=0.4)
+            for row in range(7):
+                for col in range(9):
+                    if rng.random() < 0.55:
+                        c = lamp_colours[int(rng.integers(0, len(lamp_colours)))]
+                        sc.sphere((x - 20 + col * 5, 134 + row * 5, -99.7), (1.6, 1.6, 0.8), c, emissive=c, shadows=False)
+                    else:
+                        sc.sphere((x - 20 + col * 5, 134 + row * 5, -99.7), (1.6, 1.6, 0.8), "#4a4a48", shadows=False)
+            for k in range(12):
+                sc.box((x - 22 + k * 4, 120, -99.4), (1.6, 4, 1.6), "#e04020" if k % 4 == 0 else "#d8d4c8")
+            if kind == "console":
+                # The operator's ledge, with a row of buttons.
+                sc.box((x, 96, -93), (56, 4, 16), "#d8ccb0", roughness=0.5)
+                sc.box((x, 98.2, -93), (48, 0.6, 10), "#26303a", roughness=0.4)
+                for k in range(8):
+                    sc.box((x - 21 + k * 6, 98.8, -93), (3.4, 0.8, 3.4), "#e04020" if k in (0, 7) else "#f0ecd8",
+                           shadows=False)
+
+    # The calendar and notes on the cabinets.
+    sc.plane((-90, 108, -99.3), 34, 42.5, texture=t_cal, roughness=0.6, live="calendar")
+    sc.spot("wall-1", (-60, 116, -99.3), 7, (0, 0, -5), t_n3)
+    sc.spot("wall-2", (60, 112, -99.3), 7, (0, 0, 4))
+    sc.spot("wall-3", (100, 104, -99.3), 7, (0, 0, -3))
+    sc.spot("desk", (-34, DESK_Y + 0.06, -12), 7, (-90, 12, 0))
+
+    # A steel tanker desk.
+    sc.box((0, DESK_Y - 1.5, -45), (156, 3, 82), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.4)
+    for x in (-58, 58):
+        sc.box((x, (DESK_Y - 3) / 2, -45), (38, DESK_Y - 3, 76), "#8a9a88", roughness=0.4, metalness=0.2)
+        for k in range(3):
+            sc.box((x, 14 + k * 20, -6.6), (34, 17, 1), "#7a8a78", roughness=0.4)
+            sc.box((x, 19 + k * 20, -5.8), (12, 1.6, 1.4), "#c8c8c0", metalness=0.6, roughness=0.3)
+
+    add_terminal(sc, mon, "#e8dcc0", "#c06a2c", "#5a3a24", sticky_notes=[t_n1, t_n2])
+    add_keyboard(sc, "#d6ccb4", t_keys)
+
+    # Punch cards, a box of them, an orange mug and a pen holder.
+    for k in range(5):
+        sc.box((-52 + (k % 2) * 0.4, DESK_Y + 0.2 + k * 0.4, -22), (19, 0.4, 8.3), "#efe6c8", rotation=(0, 8, 0))
+    sc.box((-62, DESK_Y + 4, -50), (21, 8, 32), "#c8b48a", roughness=0.8)
+    sc.cylinder((46, DESK_Y + 5, -22), 8.5, 10, "#e07020", roughness=0.35)
+    sc.box((51, DESK_Y + 5, -22), (2.4, 6, 1.2), "#e07020", roughness=0.35)
+    sc.cylinder((62, DESK_Y + 6, -50), 7, 12, "#7a8a78", metalness=0.3, roughness=0.4)
+    for k in range(3):
+        sc.cylinder((60 + k * 2, DESK_Y + 14, -50), 0.8, 10, ["#1840a0", "#c02020", "#202020"][k])
+
+    # A line printer with its fan-fold paper.
+    sc.box((150, 55, -30), (80, 110, 55), "#d8d0bc", rotation=(0, -25, 0), roughness=0.5)
+    sc.box((150, 112, -30), (76, 4, 50), "#5a3a24", rotation=(0, -25, 0), roughness=0.5)
+    sc.plane((140, 118, -16), 36, 54, rotation=(-60, -25, 0), texture=t_paper, roughness=0.8)
+    sc.box((150, 8, 12), (40, 16, 28), "#f4f4ee", rotation=(0, -25, 0), roughness=0.9)
+
+    sc.lights += [
+        {"type": "directional", "rotation": quat(-70, 10, 0), "color": "#f0f6f0", "intensity": 0.7, "shadows": True},
+        {"type": "directional", "rotation": quat(-20, 160, 0), "color": "#e8f0e8", "intensity": 0.25, "shadows": False},
+        {"type": "point", "position": [0, 230, -40], "color": "#f4fff4", "intensity": 1.0, "range": 450},
+    ]
+    return finish(sc, mon, background="#202420", ambient=("#8a9688", 0.4), fill="#6a7466")
+
+
 def room_2000s(out, rng, mon):
     sc = Scene("2000s")
     t_floor = save(carpet_tiles(rng), out, "carpet-tiles.jpg")
@@ -858,14 +1026,14 @@ def room_2000s(out, rng, mon):
     return finish(sc, mon, background="#202226", ambient=("#8a8e98", 0.4), fill="#5c5e62")
 
 
-def room_aero(out, rng, mon):
+def room_gloss(out, rng, mon):
     """The 2000s as people remember them: glass, gloss, bubbles, water, a
     bright blue sky and a green hill, all turned up to eleven."""
-    sc = Scene("aero")
-    t_sky = save(sky_window(rng), out, "aero-sky.jpg")
-    t_aurora = save(aurora(rng), out, "aero-aurora.jpg")
-    t_floor = save(glossy_tiles(), out, "aero-tiles.png")
-    t_wall = save(laminate(rng, (244, 248, 251)), out, "aero-wall.jpg")
+    sc = Scene("gloss")
+    t_sky = save(sky_window(rng), out, "gloss-sky.jpg")
+    t_aurora = save(aurora(rng), out, "gloss-aurora.jpg")
+    t_floor = save(glossy_tiles(), out, "gloss-tiles.png")
+    t_wall = save(laminate(rng, (244, 248, 251)), out, "gloss-wall.jpg")
     t_keys = save(keyboard_top((236, 240, 245), (212, 222, 232), (252, 253, 255)), out, "keyboard-white.png")
     t_cal = save(calendar_90s(), out, "calendar.jpg")
     t_n1 = save(sticky(rng, (250, 236, 120)), out, "sticky-yellow.png")
@@ -1033,10 +1201,11 @@ def main():
     # The picture at the top of the live calendar, which the apps draw
     # under the month name.
     save(calendar_90s().crop((16, 16, 368, 200)), out, "calendar-picture.jpg")
-    for room, builder, seed, monitors in (("80s", room_80s, 1984, (STANDARD, WIDE)),
+    for room, builder, seed, monitors in (("70s", room_70s, 1975, (TERM_STANDARD, TERM_WIDE)),
+                                          ("80s", room_80s, 1984, (STANDARD, WIDE)),
                                           ("90s", room_90s, 1995, (STANDARD, WIDE)),
                                           ("2000s", room_2000s, 2004, (LCD_STANDARD, LCD_WIDE)),
-                                          ("aero", room_aero, 2007, (LCD_STANDARD, LCD_WIDE))):
+                                          ("gloss", room_gloss, 2007, (LCD_STANDARD, LCD_WIDE))):
         for mon in monitors:
             scene = builder(out, np.random.default_rng(seed), mon)
             name = "office-%s-%s.json" % (room, mon.name)
