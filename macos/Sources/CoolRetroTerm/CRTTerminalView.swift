@@ -183,7 +183,9 @@ final class CRTOverlayView: MTKView {
 final class CRTTerminalView: NSView, MTKViewDelegate {
     let terminal: RetroTerminalView
     private let overlay: CRTOverlayView
-    private let officeView = OfficeSceneView(frame: .zero)
+    private let officeView: OfficeSceneView
+    private var officeTimer: Timer?
+    private var officeTexture: (target: MTLTexture, view: MTLTexture)?
     private var renderer: CRTRenderer?
 
     private var profile: Profile
@@ -225,6 +227,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         self.zoom = zoom
         terminal = RetroTerminalView(frame: frame)
         overlay = CRTOverlayView(frame: frame, device: MTLCreateSystemDefaultDevice())
+        officeView = OfficeSceneView(frame: frame, device: overlay.device)
         super.init(frame: frame)
 
         wantsLayer = true
@@ -233,7 +236,6 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         terminal.optionAsMetaKey = ProfileStore.shared.optionAsMeta
         terminal.installSecurityPolicy()
         terminal.menu = (NSApp.delegate as? AppDelegate)?.makeContextMenu()
-        addSubview(officeView)
         addSubview(terminal)
 
         overlay.host = self
@@ -244,6 +246,8 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         overlay.autoResizeDrawable = false
         overlay.enableSetNeedsDisplay = false
         addSubview(overlay)
+        officeView.host = self
+        addSubview(officeView)
 
         if let device = overlay.device {
             do {
@@ -276,6 +280,7 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     }
 
     deinit {
+        officeTimer?.invalidate()
         if let occlusionObserver {
             NotificationCenter.default.removeObserver(occlusionObserver)
         }
@@ -297,7 +302,16 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         applyAppearance()
     }
 
-    private var showsEffects: Bool { effectsEnabled && renderer != nil }
+    /// Office mode: back to the starting view of the room.
+    func resetOfficeView() {
+        officeView.resetView()
+    }
+
+    private var showsEffects: Bool { (effectsEnabled || officeActive) && renderer != nil }
+
+    /// Office mode: the CRT is drawn into a texture shown on the monitor of
+    /// a 3D room (OfficeSceneView) instead of filling the view.
+    private var officeActive: Bool { ProfileStore.shared.officeScene != .off && renderer != nil }
 
     /// Whether the program in the terminal is receiving mouse events
     /// (mouse reporting), in which case the pointer is an arrow.
@@ -353,8 +367,9 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             ? NSColor.black.cgColor
             : NSColor(rgb: profile.effectiveBackgroundColor).cgColor
 
-        officeView.scene = store.officeScene
-        overlay.isHidden = !showsEffects
+        officeView.show(officeActive ? store.officeScene : .off)
+        officeView.glowColor = NSColor(rgb: profile.effectiveFontColor)
+        overlay.isHidden = !showsEffects || officeActive
         terminal.suppressesOwnDrawing = showsEffects
         updatePaused()
         layoutSubviewsNow()
@@ -430,19 +445,19 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if overlay.drawableSize != size { overlay.drawableSize = size }
     }
 
-    /// The part of the view that shows the CRT: all of it, or in office
-    /// mode the monitor's screen.
+    /// The part of the view the CRT image covers: all of it, or in office
+    /// mode a 4:3 screen in the middle (shown on the monitor, not directly).
     private var screenRect: CGRect {
-        guard officeView.scene != .off else { return bounds }
-        return OfficeScene.layout(in: bounds.size).screen
+        guard officeActive else { return bounds }
+        let height = min(bounds.height, bounds.width * 3 / 4)
+        let width = height * 4 / 3
+        return CGRect(x: (bounds.width - width) / 2, y: (bounds.height - height) / 2,
+                      width: width, height: height).integral
     }
 
     private func layoutSubviewsNow() {
         let screen = screenRect
         officeView.frame = bounds
-        if officeView.scene != .off {
-            officeView.place(image: OfficeScene.layout(in: bounds.size).image)
-        }
         overlay.frame = screen
         updateDrawableSize()
         let margin = showsEffects ? profile.marginPoints : 4
@@ -486,8 +501,23 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     /// so a hidden terminal costs no GPU time or battery.
     private func updatePaused() {
         let visible = window?.occlusionState.contains(.visible) ?? false
-        overlay.isPaused = !showsEffects || !visible || pausedForIdle
+        overlay.isPaused = !showsEffects || officeActive || !visible || pausedForIdle
         overlay.preferredFramesPerSecond = effectsFramesPerSecond
+
+        let officeRunning = officeActive && visible && !pausedForIdle
+        officeView.setRunning(officeRunning, framesPerSecond: effectsFramesPerSecond)
+        let interval = 1 / Double(effectsFramesPerSecond)
+        if !officeRunning {
+            officeTimer?.invalidate()
+            officeTimer = nil
+        } else if officeTimer == nil || officeTimer?.timeInterval != interval {
+            officeTimer?.invalidate()
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.drawOffice() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            officeTimer = timer
+        }
     }
 
     // MARK: Efficiency
@@ -527,12 +557,16 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             pausedForIdle = false
             updatePaused()
         }
-        guard !drawScheduled, !overlay.isPaused else { return }
+        guard !drawScheduled, !overlay.isPaused || officeTimer != nil else { return }
         drawScheduled = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.drawScheduled = false
-            if !self.overlay.isPaused { self.overlay.draw() }
+            if !self.overlay.isPaused {
+                self.overlay.draw()
+            } else if self.officeTimer != nil {
+                self.drawOffice()
+            }
         }
     }
 
@@ -543,7 +577,31 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        guard let renderer, let drawable = view.currentDrawable else { return }
+        guard let drawable = view.currentDrawable else { return }
+        renderFrame(drawableSize: view.drawableSize) { renderer, uniforms in
+            renderer.render(to: drawable, uniforms: uniforms)
+        }
+    }
+
+    /// Office mode: renders the CRT into the texture on the monitor's screen
+    /// and moves the camera along.
+    private func drawOffice() {
+        guard let renderer else { return }
+        let size = overlay.drawableSize
+        if officeTexture?.target.width != Int(size.width) || officeTexture?.target.height != Int(size.height) {
+            officeTexture = renderer.makeScreenTexture(width: Int(size.width), height: Int(size.height),
+                                                       pixelFormat: overlay.colorPixelFormat)
+            officeView.screenTexture = officeTexture?.view
+        }
+        guard let target = officeTexture?.target else { return }
+        renderFrame(drawableSize: size) { renderer, uniforms in
+            renderer.render(into: target, uniforms: uniforms)
+        }
+        officeView.tick(time: CACurrentMediaTime() - startTime)
+    }
+
+    private func renderFrame(drawableSize: CGSize, output: (CRTRenderer, CRTUniforms) -> Void) {
+        guard let renderer else { return }
         if programUsesMouse != lastProgramUsesMouse {
             lastProgramUsesMouse = programUsesMouse
             window?.invalidateCursorRects(for: overlay)
@@ -570,19 +628,20 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
             lastCapture = now
             contentDirty = false
         }
-        let uniforms = makeUniforms(time: Float(now - startTime), drawableSize: view.drawableSize)
-        renderer.render(to: drawable, uniforms: uniforms)
+        let uniforms = makeUniforms(time: Float(now - startTime), drawableSize: drawableSize)
+        output(renderer, uniforms)
 
         framesDrawn += 1
         if now - startTime > 4, !debugSnapshotWritten {
             debugSnapshotWritten = true
-            writeDebugSnapshot(renderer: renderer, uniforms: uniforms, size: view.drawableSize)
+            writeDebugSnapshot(renderer: renderer, uniforms: uniforms, size: drawableSize)
         }
 
         // Idle: stop animating, or just blink the cursor.
         if ProfileStore.shared.pauseEffectsWhenIdle && now - lastActivity > idleDelay {
             if cursorBlinks {
-                if view.preferredFramesPerSecond != 4 { view.preferredFramesPerSecond = 4 }
+                // Office mode keeps its frame rate; the room is moving anyway.
+                if !officeActive, overlay.preferredFramesPerSecond != 4 { overlay.preferredFramesPerSecond = 4 }
             } else if !pausedForIdle {
                 pausedForIdle = true
                 DispatchQueue.main.async { [weak self] in self?.updatePaused() }
@@ -596,10 +655,11 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
     private func writeDebugSnapshot(renderer: CRTRenderer, uniforms: CRTUniforms, size: CGSize) {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["CRT_SNAPSHOT_PATH"] else { return }
-        if let crt = renderer.renderImage(width: Int(size.width), height: Int(size.height),
-                                          pixelFormat: overlay.colorPixelFormat, uniforms: uniforms),
-           let image = composeWithOfficeScene(crt),
-           let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+        let image = officeActive
+            ? officeView.snapshot().cgImage(forProposedRect: nil, context: nil, hints: nil)
+            : renderer.renderImage(width: Int(size.width), height: Int(size.height),
+                                   pixelFormat: overlay.colorPixelFormat, uniforms: uniforms)
+        if let image, let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
             do {
                 try png.write(to: URL(fileURLWithPath: path))
                 NSLog("cool-retro-term: wrote snapshot to %@", path)
@@ -612,29 +672,6 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         if environment["CRT_SNAPSHOT_QUIT"] == "1" {
             NSApp.terminate(nil)
         }
-    }
-
-    /// In office mode, puts the rendered screen into the office picture, as
-    /// the window shows it.
-    private func composeWithOfficeScene(_ crt: CGImage) -> CGImage? {
-        let scene = officeView.scene
-        guard scene != .off,
-              let picture = scene.image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return crt }
-        let scale = CGFloat(crt.width) / max(screenRect.width, 1)
-        let width = Int((bounds.width * scale).rounded()), height = Int((bounds.height * scale).rounded())
-        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return crt }
-        let layout = OfficeScene.layout(in: bounds.size)
-        func scaled(_ r: CGRect) -> CGRect {
-            CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
-        }
-        context.setFillColor(scene.wallColor.cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        context.interpolationQuality = .high
-        context.draw(picture, in: scaled(layout.image))
-        context.draw(crt, in: scaled(screenRect))
-        return context.makeImage()
     }
 
     private func captureTerminal(into renderer: CRTRenderer) {
@@ -748,11 +785,14 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
 
     /// Sends a mouse event to the terminal, moved to where the pointer
     /// appears on the curved screen.
-    func forwardMouse(_ event: NSEvent) {
+    /// Passes a mouse event to the terminal. `screenUV` is where it points
+    /// on the CRT image (0 to 1 from the top left), for office mode;
+    /// otherwise it's worked out from the event's position.
+    func forwardMouse(_ event: NSEvent, screenUV: SIMD2<Float>? = nil) {
         if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type) {
             window?.makeFirstResponder(terminal)
         }
-        let mapped = remap(event)
+        let mapped = remap(event, screenUV: screenUV)
         switch event.type {
         case .leftMouseDown: terminal.mouseDown(with: mapped)
         case .leftMouseDragged: terminal.mouseDragged(with: mapped)
@@ -767,11 +807,11 @@ final class CRTTerminalView: NSView, MTKViewDelegate {
         }
     }
 
-    private func remap(_ event: NSEvent) -> NSEvent {
+    private func remap(_ event: NSEvent, screenUV: SIMD2<Float>?) -> NSEvent {
         let size = overlay.bounds.size
         guard size.width > 0, size.height > 0 else { return event }
         let point = overlay.convert(event.locationInWindow, from: nil)
-        let uv = SIMD2<Float>(Float(point.x / size.width), Float(1 - point.y / size.height))
+        let uv = screenUV ?? SIMD2<Float>(Float(point.x / size.width), Float(1 - point.y / size.height))
         let distorted = CRTRenderer.distort(uv, curvature: Float(profile.screenCurvature * 0.6),
                                             frameSize: Float(profile.frameSize * 0.05))
         let local = NSPoint(x: CGFloat(distorted.x) * size.width, y: (1 - CGFloat(distorted.y)) * size.height)

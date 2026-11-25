@@ -23,9 +23,31 @@
         <file>TerminalContainer.qml</file>
         <file>TerminalTabs.qml</file>
         <file>images/crt256.png</file>
-        <file>images/office-80s.jpg</file>
-        <file>images/office-90s.jpg</file>
         <file>OfficeScene.qml</file>
+        <file>office/blinds.jpg</file>
+        <file>office/calendar.jpg</file>
+        <file>office/ceiling-80s.jpg</file>
+        <file>office/ceiling-light.jpg</file>
+        <file>office/ceiling-tile.jpg</file>
+        <file>office/fabric.jpg</file>
+        <file>office/floppy-0.png</file>
+        <file>office/floppy-1.png</file>
+        <file>office/floppy-2.png</file>
+        <file>office/keyboard-beige.png</file>
+        <file>office/keyboard-grey.png</file>
+        <file>office/laminate.jpg</file>
+        <file>office/memo.jpg</file>
+        <file>office/office-80s.json</file>
+        <file>office/office-90s.json</file>
+        <file>office/office-carpet.jpg</file>
+        <file>office/office-wall.jpg</file>
+        <file>office/poster.jpg</file>
+        <file>office/shag-carpet.jpg</file>
+        <file>office/sticky-green.png</file>
+        <file>office/sticky-pink.png</file>
+        <file>office/sticky-yellow.png</file>
+        <file>office/walnut.jpg</file>
+        <file>office/wood-panel.jpg</file>
         <file>utils.js</file>
         <file>images/allNoise512.png</file>
         <file>fonts/fixedsys-excelsior/FSEX301-L2.ttf</file>

@@ -27,7 +27,7 @@ Alternatively, most distributions such as Ubuntu, Fedora or Arch already package
 
 ## Office mode
 
-View ▸ Office Mode zooms out to show the terminal as the screen of a monitor on a desk, in an **80s Den** or a **90s Cubicle**. The pictures are original artwork drawn by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py). The setting is shared with Cool Retro Term SE.
+View ▸ Office Mode puts the terminal on the screen of a CRT monitor in a 3D room, an **80s Den** or a **90s Cubicle**. Option/Alt-drag looks around, Option/Alt-scroll zooms and Option/Alt-double-click goes back to the desk. The rooms are original, built by [`scripts/generate-office-scenes.py`](scripts/generate-office-scenes.py), and drawn with Qt Quick 3D here and SceneKit in Cool Retro Term SE; the setting is shared between them.
 
 ## Cool Retro Term SE (native macOS app)
 

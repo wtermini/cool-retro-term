@@ -220,6 +220,26 @@ final class CRTRenderer {
         commandBuffer.commit()
     }
 
+    /// Renders one frame into a texture (office mode, where SceneKit shows
+    /// it on the monitor's screen).
+    func render(into texture: MTLTexture, uniforms: CRTUniforms) {
+        guard let commandBuffer = queue.makeCommandBuffer() else { return }
+        encodeFrame(commandBuffer, into: texture, uniforms: uniforms)
+        commandBuffer.commit()
+    }
+
+    /// A texture to render the screen into for office mode, and a view of it
+    /// for SceneKit that reads it as sRGB, as the display would.
+    func makeScreenTexture(width: Int, height: Int, pixelFormat: MTLPixelFormat) -> (target: MTLTexture, view: MTLTexture)? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: pixelFormat, width: max(width, 1), height: max(height, 1), mipmapped: false)
+        descriptor.usage = [.renderTarget, .shaderRead, .pixelFormatView]
+        descriptor.storageMode = .private
+        guard let target = device.makeTexture(descriptor: descriptor) else { return nil }
+        let srgb: MTLPixelFormat = pixelFormat == .bgra8Unorm ? .bgra8Unorm_srgb : pixelFormat
+        return (target, target.makeTextureView(pixelFormat: srgb) ?? target)
+    }
+
     /// Renders one frame offscreen and returns it as an image. Used to save
     /// screenshots for checking the effects (CRT_SNAPSHOT_PATH).
     func renderImage(width: Int, height: Int, pixelFormat: MTLPixelFormat, uniforms: CRTUniforms) -> CGImage? {

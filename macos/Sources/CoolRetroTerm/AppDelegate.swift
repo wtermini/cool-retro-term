@@ -154,6 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ProfileStore.shared.officeScene = scene
     }
 
+    @objc func resetOfficeView(_ sender: Any?) {
+        frontController?.currentSession?.crtView.resetOfficeView()
+    }
+
     @objc func chooseCursorShape(_ sender: NSMenuItem) {
         ProfileStore.shared.cursorShape = sender.tag
     }
@@ -237,6 +241,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.state = ProfileStore.shared.effectsEnabled ? .on : .off
         case #selector(chooseOfficeScene(_:)):
             menuItem.state = (menuItem.representedObject as? String) == ProfileStore.shared.officeScene.rawValue ? .on : .off
+        case #selector(resetOfficeView(_:)):
+            return frontController != nil && ProfileStore.shared.officeScene != .off
         case #selector(chooseCursorShape(_:)):
             menuItem.state = menuItem.tag == ProfileStore.shared.cursorShape ? .on : .off
         case #selector(toggleBlinkingCursor(_:)):
@@ -372,6 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             entry.representedObject = scene.rawValue
             office.addItem(entry)
         }
+        office.addItem(.separator())
+        office.addItem(item("Reset View", #selector(resetOfficeView(_:))))
         view.addItem(withTitle: "Office Mode", action: nil, keyEquivalent: "").submenu = office
         view.addItem(.separator())
         view.addItem(item("Bigger", #selector(makeTextBigger(_:)), "+"))

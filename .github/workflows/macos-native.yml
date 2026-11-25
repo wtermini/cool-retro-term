@@ -7,7 +7,7 @@ on:
       - 'macos/**'
       - 'app/qml/fonts/**'
       - 'app/qml/ApplicationSettings.qml'
-      - 'app/qml/images/office-*.jpg'
+      - 'app/qml/office/**'
       - 'app/fontmanager.cpp'
       - '.github/workflows/macos-native.yml'
   pull_request:

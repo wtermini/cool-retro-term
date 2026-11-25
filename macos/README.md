@@ -110,12 +110,22 @@ xattr -dr com.apple.quarantine "Cool Retro Term SE.app"
 - **View ▸ Profile** switches between the built-in profiles and your custom
   profiles from the Qt app. The choice is saved to the shared settings and
   applies to every window.
-- **View ▸ Office Mode** zooms out to show the terminal as the screen of a
-  monitor on a desk, in an **80s Den** (wood panelling, beige monitor) or a
-  **90s Cubicle** (fabric partition, platinum monitor). The terminal gets the
-  monitor's screen, so it has fewer columns; make the text smaller to fit
-  more. Also in Settings ▸ General, and shared with the Qt app (View ▸
-  Office Mode, or Settings ▸ Advanced).
+- **View ▸ Office Mode** puts the terminal on the screen of a CRT monitor
+  in a 3D room: an **80s Den** (wood panelling, shag carpet, a banker's lamp)
+  or a **90s Cubicle** (fabric partitions, fluorescent lights, sticky notes).
+  The terminal keeps working as usual on the monitor's screen, which gives
+  off light in the profile's colour.
+  - **Option-drag** looks around the room, **Option-scroll** or **pinch**
+    zooms, and **Option-double-click** (or View ▸ Office Mode ▸ Reset View)
+    goes back to the desk. The view drifts gently and follows the pointer a
+    little.
+  - The terminal is a 4:3 screen in office mode, and the CRT effects are
+    always on.
+  - It's drawn with SceneKit at the effects frame rate, and stops with the
+    effects when the window is hidden.
+  - Also in Settings ▸ General, and shared with the Qt app (View ▸ Office
+    Mode, or Settings ▸ Advanced), which builds the same rooms with Qt
+    Quick 3D.
 - **View ▸ CRT Effects** (Option-Cmd-E) turns the effects off, leaving a plain,
   fast terminal in the profile's colours.
 - **Cmd-Plus / Cmd-Minus / Cmd-0** change the text size.
@@ -220,9 +230,10 @@ GPL-3.0:
 - The bundled fonts, unmodified and each with its license file (SIL OFL,
   MIT, CC BY-SA 4.0, Kreative free use license and others).
 
-The office mode pictures are original to this project: they're drawn by
-`scripts/generate-office-scenes.py` from shapes, gradients and noise, and
-are covered by the same GPL as the rest of the code.
+The office mode rooms and their textures are original to this project:
+`scripts/generate-office-scenes.py` builds them from simple shapes,
+gradients and noise, and they're covered by the same GPL as the rest of the
+code.
 
 `build-app.sh` puts the GPL text, SwiftTerm's license and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the app's

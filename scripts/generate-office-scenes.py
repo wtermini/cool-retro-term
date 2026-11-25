@@ -17,502 +17,538 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Draws the office mode backgrounds used by both apps.
+"""Builds the 3D rooms for office mode, shared by both apps.
 
-Office mode shows the terminal as the screen of a monitor sitting on a desk.
-The scenes are drawn entirely by this script from simple shapes, gradients
-and noise (no photos or third-party artwork), with a fixed random seed so the
-output is reproducible:
+Office mode shows the terminal as the screen of a monitor on a desk in a 3D
+room you can look around. This script writes, into app/qml/office/:
+
+- office-80s.json and office-90s.json: the rooms, as a list of simple shapes
+  (boxes, cylinders, spheres and flat panels) with materials, plus the
+  lights, the camera and where the screen is;
+- the textures they use (wood, carpet, fabric, a poster and so on).
+
+The Qt app builds the rooms with Qt Quick 3D (app/qml/OfficeScene.qml) and
+Cool Retro Term SE with SceneKit (macos/Sources/CoolRetroTerm/OfficeScene.swift),
+both from these files, so the rooms look the same in each.
+
+Everything is drawn by this script from shapes, gradients and noise, with a
+fixed random seed (no photos or third-party artwork):
 
     python3 scripts/generate-office-scenes.py
 
-writes app/qml/images/office-80s.jpg and office-90s.jpg, which the Qt app
-loads from its resources and Cool Retro Term SE copies into its bundle.
-
-Both scenes share one layout. If you change SCREEN or MONITOR, update the
-same numbers in app/qml/OfficeScene.qml and
-macos/Sources/CoolRetroTerm/OfficeScene.swift.
+Scene format: units are centimetres, Y is up, and the camera starts out
+looking down -Z. Shapes are unit sized and scaled by "size": a box is
+1 x 1 x 1, a cylinder is 1 across and 1 high, a sphere is 1 across, and a
+"plane" is 1 x 1 in the XY plane, facing +Z. "rotation" is a quaternion
+[x, y, z, w]. Light intensities are in Qt Quick 3D's brightness units
+(1 = its default).
 
 Requires Pillow and numpy.
 """
 
+import json
+import math
 import os
 import sys
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-WIDTH, HEIGHT = 2400, 1500
-SS = 2  # drawn at twice the size, then scaled down for smooth edges
-
-# Where the terminal goes (x, y, width, height), a 4:3 opening.
-SCREEN = (720, 250, 960, 720)
-# The monitor and its stand: always kept fully in view.
-MONITOR = (620, 150, 1160, 1000)
-DESK_TOP = 1090      # far edge of the desk surface
-DESK_FRONT = 1385    # front edge of the desk surface
+TEX = 512
 
 
-def s(v):
-    return int(round(v * SS))
+# ---------------------------------------------------------------- helpers ---
+
+def quat(x=0.0, y=0.0, z=0.0):
+    """Quaternion [x, y, z, w]: rotate by x degrees about X, then y about Y,
+    then z about Z (fixed axes)."""
+    def axis(ax, deg):
+        h = math.radians(deg) / 2
+        q = [0.0, 0.0, 0.0, math.cos(h)]
+        q[ax] = math.sin(h)
+        return q
+
+    def mul(a, b):
+        ax, ay, az, aw = a
+        bx, by, bz, bw = b
+        return [aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+                aw * bw - ax * bx - ay * by - az * bz]
+
+    q = mul(axis(2, z), mul(axis(1, y), axis(0, x)))
+    return [round(v, 6) for v in q]
 
 
-def box(x0, y0, x1, y1):
-    return [s(x0), s(y0), s(x1), s(y1)]
+class Scene:
+    def __init__(self, name):
+        self.name = name
+        self.objects = []
+        self.lights = []
+
+    def add(self, shape, position, size, color="#808080", rotation=(0, 0, 0), texture=None,
+            repeat=(1, 1), roughness=0.7, metalness=0.0, emissive=None, shadows=True):
+        obj = {"shape": shape,
+               "position": [round(float(v), 3) for v in position],
+               "size": [round(float(v), 3) for v in size],
+               "rotation": quat(*rotation),
+               "color": color,
+               "roughness": roughness,
+               "metalness": metalness,
+               "shadows": shadows}
+        if texture:
+            obj["texture"] = texture
+            obj["repeat"] = [round(float(v), 3) for v in repeat]
+        if emissive:
+            obj["emissive"] = emissive
+        self.objects.append(obj)
+        return obj
+
+    def box(self, center, size, color, **kw):
+        return self.add("box", center, size, color, **kw)
+
+    def cylinder(self, center, diameter, height, color, **kw):
+        return self.add("cylinder", center, (diameter, height, diameter), color, **kw)
+
+    def sphere(self, center, size, color, **kw):
+        return self.add("sphere", center, size, color, **kw)
+
+    def plane(self, center, width, height, color="#ffffff", **kw):
+        return self.add("plane", center, (width, height, 1), color, **kw)
 
 
-def noise(w, h, amount, rng, blur=0):
-    n = rng.normal(0, amount, (h, w)).astype(np.float32)
-    if blur:
-        img = Image.fromarray(np.clip(n + 128, 0, 255).astype(np.uint8))
-        img = img.filter(ImageFilter.GaussianBlur(blur))
-        n = np.asarray(img, dtype=np.float32) - 128
-    return n
+def tile_noise(size, cells, rng, amount):
+    """Smooth noise that wraps around, for tiling textures."""
+    base = rng.normal(0, 1, (cells, cells)).astype(np.float32)
+    big = np.tile(base, (3, 3))
+    img = Image.fromarray(np.clip(big * 40 + 128, 0, 255).astype(np.uint8))
+    img = img.resize((size * 3, size * 3), Image.BICUBIC)
+    a = np.asarray(img, np.float32)[size:2 * size, size:2 * size] - 128
+    return a / 40 * amount
 
 
-def add(img, arr):
-    a = np.asarray(img, dtype=np.float32)
-    if arr.ndim == 2:
-        arr = arr[:, :, None]
-    return Image.fromarray(np.clip(a + arr, 0, 255).astype(np.uint8))
-
-
-def vertical_gradient(w, h, top, bottom):
-    t = np.linspace(0, 1, h, dtype=np.float32)[:, None, None]
-    top = np.array(top, np.float32)
-    bottom = np.array(bottom, np.float32)
-    g = top * (1 - t) + bottom * t
-    return Image.fromarray(np.repeat(g, w, axis=1).astype(np.uint8))
-
-
-def shadow(base, shape_box, radius, blur, opacity, offset=(0, 0)):
-    """Darkens `base` under a soft rounded rectangle."""
-    mask = Image.new("L", base.size, 0)
-    d = ImageDraw.Draw(mask)
-    x0, y0, x1, y1 = shape_box
-    d.rounded_rectangle([x0 + s(offset[0]), y0 + s(offset[1]),
-                         x1 + s(offset[0]), y1 + s(offset[1])],
-                        radius=s(radius), fill=int(255 * opacity))
-    mask = mask.filter(ImageFilter.GaussianBlur(s(blur)))
-    black = Image.new("RGB", base.size, (0, 0, 0))
-    return Image.composite(black, base, mask)
-
-
-def light(base, center, radius, color, strength):
-    """Adds a soft pool of light."""
-    w, h = base.size
-    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-    dist = np.sqrt((xx - s(center[0])) ** 2 + (yy - s(center[1])) ** 2) / s(radius)
-    fall = np.clip(1 - dist, 0, 1) ** 2 * strength
-    return add(base, fall[:, :, None] * np.array(color, np.float32)[None, None, :])
-
-
-def vignette(base, strength):
-    w, h = base.size
-    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-    dx = (xx / w - 0.5) * 2
-    dy = (yy / h - 0.5) * 2
-    v = 1 - strength * np.clip(dx * dx * 0.6 + dy * dy * 0.8, 0, 1)
-    a = np.asarray(base, np.float32) * v[:, :, None]
+def from_array(a):
     return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 
-# ---------------------------------------------------------------- monitor ---
+def save(img, out_dir, name):
+    path = os.path.join(out_dir, name)
+    if name.endswith(".png"):
+        img.save(path, optimize=True)
+    else:
+        img.convert("RGB").save(path, quality=85, optimize=True)
+    return name
 
-def draw_monitor(img, casing, casing_dark, casing_light, rng):
+
+# --------------------------------------------------------------- textures ---
+
+def wood_panel(rng):
+    """Vertical tongue-and-groove panelling, 4 planks; tiles."""
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array([112, 72, 42], np.float32)
+    plank = TEX // 4
+    xs = np.arange(TEX)[None, :] + tile_noise(TEX, 6, rng, 6)
+    grain = np.sin(xs * 0.9 + tile_noise(TEX, 12, rng, 3)) * 5 + tile_noise(TEX, 64, rng, 4)
+    a += grain[:, :, None] * np.array([1.0, 0.7, 0.45])
+    for i in range(4):
+        a[:, i * plank:(i + 1) * plank] += rng.uniform(-14, 10)
+        a[:, i * plank:i * plank + 4] = [52, 30, 16]
+        a[:, i * plank + 4:i * plank + 6] += 25
+    return from_array(a)
+
+
+def walnut(rng):
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array([104, 64, 36], np.float32)
+    ys = np.arange(TEX)[:, None] + tile_noise(TEX, 4, rng, 10)
+    grain = np.sin(ys * 0.35 + tile_noise(TEX, 8, rng, 2)) * 9 + tile_noise(TEX, 96, rng, 5)
+    a += grain[:, :, None] * np.array([1.0, 0.65, 0.4])
+    return from_array(a)
+
+
+def carpet(rng, color):
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array(color, np.float32)
+    fine = rng.normal(0, 16, (TEX, TEX)).astype(np.float32)
+    fine = np.asarray(from_array(fine + 128).filter(ImageFilter.GaussianBlur(1.2)), np.float32) - 128
+    a += (fine * 1.6 + tile_noise(TEX, 8, rng, 10))[:, :, None]
+    return from_array(a)
+
+
+def fabric(rng, color):
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array(color, np.float32)
+    xs = np.arange(TEX)
+    weave = (np.sin(xs * math.pi / 2)[None, :] * np.sin(xs * math.pi / 2)[:, None]) * 4
+    a += (rng.normal(0, 7, (TEX, TEX)) + weave + tile_noise(TEX, 16, rng, 8))[:, :, None]
+    return from_array(a)
+
+
+def laminate(rng, color):
+    a = np.zeros((TEX, TEX, 3), np.float32) + np.array(color, np.float32)
+    a += (rng.normal(0, 4, (TEX, TEX)) + tile_noise(TEX, 32, rng, 3))[:, :, None]
+    return from_array(a)
+
+
+def ceiling_tile(rng):
+    a = np.zeros((TEX, TEX, 3), np.float32) + 222
+    a[rng.random((TEX, TEX)) < 0.012] -= 70
+    a = np.asarray(from_array(a).filter(ImageFilter.GaussianBlur(0.8)), np.float32)
+    a[:6, :] -= 60
+    a[:, :6] -= 60
+    return from_array(a)
+
+
+def poster_80s():
+    w, h = 384, 512
+    img = Image.new("RGB", (w, h), (236, 228, 210))
+    x0, y0, x1, y1 = 32, 32, w - 32, h - 110
+    t = np.linspace(0, 1, y1 - y0)[:, None, None]
+    sky = np.array([40, 20, 80]) * (1 - t) + np.array([250, 120, 70]) * t
+    img.paste(from_array(np.repeat(sky, x1 - x0, axis=1)), (x0, y0))
     d = ImageDraw.Draw(img)
-    mx, my, mw, mh = MONITOR
-    sx, sy, sw, sh = SCREEN
-    cx0, cy0, cx1, cy1 = mx + 20, my, mx + mw - 20, my + 925
-    # Stand and foot.
-    foot = box(mx + mw / 2 - 260, my + 950, mx + mw / 2 + 260, my + 995)
-    img.paste(shadow(img, foot, 30, 18, 0.55, (0, 14)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(box(mx + mw / 2 - 170, my + 900, mx + mw / 2 + 170, my + 970),
-                        radius=s(20), fill=casing_dark)
-    d.rounded_rectangle(foot, radius=s(26), fill=casing)
-    d.rounded_rectangle(box(mx + mw / 2 - 255, my + 952, mx + mw / 2 + 255, my + 962),
-                        radius=s(6), fill=casing_light)
-
-    # Casing, with a soft shadow on the wall behind it.
-    body = box(cx0, cy0, cx1, cy1)
-    img.paste(shadow(img, body, 50, 40, 0.5, (16, 26)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(body, radius=s(46), fill=casing_dark)
-    d.rounded_rectangle(box(cx0 + 6, cy0 + 4, cx1 - 6, cy1 - 12), radius=s(42), fill=casing)
-
-    # Light from above: brighter top edge, darker towards the bottom.
-    shade = Image.new("L", img.size, 0)
-    sd = ImageDraw.Draw(shade)
-    sd.rounded_rectangle(box(cx0 + 6, cy0 + 4, cx1 - 6, cy1 - 12), radius=s(42), fill=255)
-    grad = vertical_gradient(img.size[0], img.size[1], (255, 255, 255), (0, 0, 0)).convert("L")
-    top_light = Image.composite(Image.new("RGB", img.size, casing_light), img,
-                                Image.fromarray((np.asarray(grad, np.float32) / 255 *
-                                                 np.asarray(shade, np.float32) / 255 *
-                                                 90).astype(np.uint8)))
-    img.paste(top_light, (0, 0))
-    d = ImageDraw.Draw(img)
-
-    # Recessed bezel around the tube.
-    bz = 34
-    d.rounded_rectangle(box(sx - bz - 6, sy - bz - 6, sx + sw + bz + 6, sy + sh + bz + 6),
-                        radius=s(30), fill=casing_light)
-    d.rounded_rectangle(box(sx - bz, sy - bz, sx + sw + bz, sy + sh + bz),
-                        radius=s(26), fill=casing_dark)
-    d.rounded_rectangle(box(sx - 10, sy - 10, sx + sw + 10, sy + sh + 10),
-                        radius=s(18), fill=(18, 18, 16))
-    # The tube itself (covered by the terminal in the app).
-    d.rectangle(box(sx, sy, sx + sw, sy + sh), fill=(12, 14, 12))
-
-    # Chin: badge, power button and LED.
-    chin_y = sy + sh + bz + 18
-    d.rounded_rectangle(box(sx, chin_y, sx + 150, chin_y + 26), radius=s(5), fill=casing_dark)
-    for i in range(5):
-        d.rectangle(box(sx + 14 + i * 26, chin_y + 9, sx + 30 + i * 26, chin_y + 17),
-                    fill=casing_light)
-    bx = sx + sw - 70
-    d.rounded_rectangle(box(bx, chin_y - 4, bx + 60, chin_y + 30), radius=s(8), fill=casing_dark)
-    d.rounded_rectangle(box(bx + 4, chin_y, bx + 56, chin_y + 26), radius=s(6), fill=casing_light)
-    d.ellipse(box(bx - 40, chin_y + 6, bx - 24, chin_y + 22), fill=(60, 220, 90))
-    img = light(img, (bx - 32, chin_y + 14), 40, (40, 160, 60), 0.8)
-    d = ImageDraw.Draw(img)
-
-    # Ventilation slots along the top.
-    for i in range(18):
-        x = mx + 300 + i * 32
-        d.rounded_rectangle(box(x, cy0 + 26, x + 14, cy0 + 70), radius=s(5), fill=casing_dark)
-    return img
-
-
-def draw_keyboard(img, base, keys, key_top, rng):
-    kx0, ky0, kx1, ky1 = 760, 1165, 1640, 1315
-    img.paste(shadow(img, box(kx0, ky0, kx1, ky1), 20, 16, 0.55, (6, 16)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(box(kx0, ky0, kx1, ky1), radius=s(18), fill=base)
-    d.rounded_rectangle(box(kx0 + 4, ky0 + 2, kx1 - 4, ky0 + 10), radius=s(6),
-                        fill=tuple(min(255, c + 25) for c in base))
-    # Rows of keys, narrowing slightly towards the back for perspective.
-    rows = 5
-    for r in range(rows):
-        t = r / (rows - 1)
-        y0 = ky0 + 22 + r * 26
-        inset = 30 - 12 * t
-        x = kx0 + inset
-        x_end = kx1 - inset - 190
-        count = 15
-        kw = (x_end - x) / count
-        for i in range(count):
-            w = kw * (2 if (r == 4 and i == 5) else 1)
-            if r == 4 and i > 5 and i < 7:
-                continue
-            d.rounded_rectangle(box(x + i * kw + 2, y0, x + i * kw + w - 3, y0 + 21),
-                                radius=s(4), fill=keys)
-            d.rounded_rectangle(box(x + i * kw + 5, y0 + 2, x + i * kw + w - 6, y0 + 14),
-                                radius=s(3), fill=key_top)
-        # Number pad.
-        for i in range(4):
-            px = kx1 - inset - 170 + i * 40
-            d.rounded_rectangle(box(px, y0, px + 36, y0 + 21), radius=s(4), fill=keys)
-            d.rounded_rectangle(box(px + 3, y0 + 2, px + 33, y0 + 14), radius=s(3), fill=key_top)
-    # Cable to the monitor.
-    d.line([(s(1200), s(ky0)), (s(1205), s(1130)), (s(1230), s(1095))],
-           fill=(40, 38, 36), width=s(7))
-    return img
-
-
-# ------------------------------------------------------------ 80s den ---
-
-def scene_80s(rng):
-    W, H = s(WIDTH), s(HEIGHT)
-    # Wood panelling: vertical planks with grain and grooves.
-    img = Image.new("RGB", (W, H), (110, 70, 40))
-    a = np.zeros((H, W, 3), np.float32)
-    plank = s(150)
-    xs = np.arange(W)
-    for i, x0 in enumerate(range(0, W, plank)):
-        tone = rng.uniform(-14, 14)
-        a[:, x0:x0 + plank] += tone
-    grain_x = rng.normal(0, 1, W).astype(np.float32)
-    grain_x = np.convolve(grain_x, np.ones(s(3)) / s(3), mode="same")
-    wobble = noise(W // 8, H // 8, 1, rng, blur=4)
-    wobble = np.asarray(Image.fromarray(np.clip(wobble * 40 + 128, 0, 255).astype(np.uint8))
-                        .resize((W, H), Image.BILINEAR), np.float32) - 128
-    shifted = (xs[None, :] + wobble * 0.6).astype(np.int32) % W
-    grain = grain_x[shifted] * 9
-    a += grain[:, :, None] * np.array([1.0, 0.75, 0.5])
-    img = add(img, a)
-    d = ImageDraw.Draw(img)
-    for x0 in range(0, W, plank):
-        d.line([(x0, 0), (x0, H)], fill=(52, 30, 16), width=s(4))
-        d.line([(x0 + s(4), 0), (x0 + s(4), H)], fill=(140, 95, 60), width=s(1))
-
-    # A framed poster of a sunset grid, upper left.
-    px0, py0, px1, py1 = 150, 140, 520, 600
-    img.paste(shadow(img, box(px0, py0, px1, py1), 6, 14, 0.6, (8, 12)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rectangle(box(px0, py0, px1, py1), fill=(30, 26, 24))
-    d.rectangle(box(px0 + 18, py0 + 18, px1 - 18, py1 - 18), fill=(236, 228, 210))
-    ix0, iy0, ix1, iy1 = px0 + 44, py0 + 44, px1 - 44, py1 - 120
-    pw, ph = ix1 - ix0, iy1 - iy0
-    art = vertical_gradient(s(pw), s(ph), (40, 20, 80), (250, 120, 70))
-    ad = ImageDraw.Draw(art)
-    cx, cy, r = pw / 2, ph * 0.62, 70
+    cx, cy, r = w / 2, y0 + (y1 - y0) * 0.6, 70
     for k in range(9):
         y = cy - r + k * (2 * r / 9)
-        half = np.sqrt(max(r * r - (y + r / 18 - cy) ** 2, 0))
-        ad.rectangle(box(cx - half, y, cx + half, y + 2 * r / 9 - 5), fill=(255, 210, 80))
-    hy = ph * 0.66
-    ad.rectangle(box(0, hy, pw, ph), fill=(30, 10, 50))
+        half = math.sqrt(max(r * r - (y + r / 18 - cy) ** 2, 0))
+        d.rectangle([cx - half, y, cx + half, y + 2 * r / 9 - 5], fill=(255, 210, 80))
+    hy = y0 + (y1 - y0) * 0.66
+    d.rectangle([x0, hy, x1, y1], fill=(30, 10, 50))
     for k in range(7):
-        y = hy + (ph - hy) * (k / 6) ** 1.6
-        ad.line([(0, s(y)), (s(pw), s(y))], fill=(255, 60, 180), width=s(2))
-    for k in range(-6, 7):
-        ad.line([(s(cx + k * 6), s(hy)), (s(cx + k * 60), s(ph))], fill=(255, 60, 180), width=s(2))
-    img.paste(art, (s(ix0), s(iy0)))
+        y = hy + (y1 - hy) * (k / 6) ** 1.6
+        d.line([(x0, y), (x1, y)], fill=(255, 60, 180), width=2)
+    for k in range(-7, 8):
+        d.line([(cx + k * 5, hy), (cx + k * 45, y1)], fill=(255, 60, 180), width=2)
+    d.rectangle([x0, y0, x1, y1], outline=(236, 228, 210), width=1)
+    img.paste((236, 228, 210), (0, 0, x0, h))
+    img.paste((236, 228, 210), (x1, 0, w, h))
     d = ImageDraw.Draw(img)
-    for k, w in enumerate((200, 150)):
-        d.rectangle(box((ix0 + ix1) / 2 - w / 2, iy1 + 26 + k * 34, (ix0 + ix1) / 2 + w / 2,
-                        iy1 + 40 + k * 34), fill=(60, 50, 60))
-
-    # A shelf with books and a cassette player, upper right.
-    sx0, sx1, sy = 1840, 2300, 470
-    d.rectangle(box(sx0, sy, sx1, sy + 26), fill=(72, 44, 24))
-    d.rectangle(box(sx0, sy, sx1, sy + 6), fill=(120, 80, 48))
-    x = sx0 + 20
-    book_colors = [(150, 40, 30), (40, 70, 110), (200, 160, 60), (60, 100, 60),
-                   (120, 60, 110), (180, 90, 40), (50, 50, 60)]
-    for i in range(9):
-        bw = rng.integers(24, 40)
-        bh = rng.integers(150, 210)
-        c = book_colors[i % len(book_colors)]
-        d.rectangle(box(x, sy - bh, x + bw, sy), fill=c)
-        d.rectangle(box(x + 4, sy - bh + 20, x + bw - 4, sy - bh + 28), fill=(220, 200, 150))
-        x += bw + 3
-    d.rounded_rectangle(box(x + 30, sy - 120, sx1 - 10, sy), radius=s(10), fill=(40, 38, 40))
-    d.rectangle(box(x + 50, sy - 100, sx1 - 30, sy - 60), fill=(20, 20, 22))
-    for k in range(4):
-        d.rectangle(box(x + 50 + k * 34, sy - 45, x + 76 + k * 34, sy - 22), fill=(170, 170, 175))
-
-    # Warm lamp light on the wall.
-    img = light(img, (1200, 300), 1500, (60, 40, 15), 0.6)
-
-    # Desk: walnut top with grain and a darker front.
-    desk = np.zeros((H, W, 3), np.float32)
-    top = vertical_gradient(W, s(DESK_FRONT - DESK_TOP), (96, 58, 32), (128, 80, 46))
-    img.paste(top, (0, s(DESK_TOP)))
-    g = noise(W // 2, s(DESK_FRONT - DESK_TOP) // 12, 1, rng, blur=1)
-    g = np.asarray(Image.fromarray(np.clip(g * 30 + 128, 0, 255).astype(np.uint8))
-                   .resize((W, s(DESK_FRONT - DESK_TOP)), Image.BILINEAR), np.float32) - 128
-    desk[s(DESK_TOP):s(DESK_FRONT)] = g[:, :, None] * np.array([0.5, 0.35, 0.2])
-    img = add(img, desk)
-    d = ImageDraw.Draw(img)
-    d.rectangle(box(0, DESK_TOP - 6, WIDTH, DESK_TOP), fill=(60, 34, 18))
-    d.rectangle(box(0, DESK_FRONT, WIDTH, HEIGHT), fill=(70, 40, 22))
-    d.rectangle(box(0, DESK_FRONT, WIDTH, DESK_FRONT + 10), fill=(150, 98, 60))
-    img = light(img, (1200, 1150), 1100, (50, 32, 12), 0.5)
-
-    # Beige monitor and keyboard.
-    img = draw_monitor(img, (214, 204, 178), (170, 160, 136), (232, 225, 204), rng)
-    img = draw_keyboard(img, (200, 190, 164), (176, 166, 142), (226, 218, 196), rng)
-    d = ImageDraw.Draw(img)
-
-    # Floppy disks on the right.
-    for k, c in enumerate([(30, 30, 34), (40, 60, 130), (150, 40, 40)]):
-        fx, fy = 1780 + k * 22, 1180 - k * 14
-        poly = [(fx, fy), (fx + 190, fy - 10), (fx + 205, fy + 110), (fx + 12, fy + 122)]
-        sh = Image.new("L", img.size, 0)
-        ImageDraw.Draw(sh).polygon([(s(x + 6), s(y + 10)) for x, y in poly], fill=130)
-        img = Image.composite(Image.new("RGB", img.size, 0), img, sh.filter(ImageFilter.GaussianBlur(s(8))))
-        d = ImageDraw.Draw(img)
-        d.polygon([(s(x), s(y)) for x, y in poly], fill=c)
-        d.polygon([(s(fx + 50), s(fy - 2)), (s(fx + 130), s(fy - 7)), (s(fx + 133), s(fy + 30)),
-                   (s(fx + 53), s(fy + 35))], fill=(175, 175, 180))
-        d.polygon([(s(fx + 40), s(fy + 62)), (s(fx + 175), s(fy + 55)), (s(fx + 181), s(fy + 104)),
-                   (s(fx + 44), s(fy + 112))], fill=(235, 230, 215))
-
-    # Coffee mug.
-    mx, my = 2030, 1010
-    img.paste(shadow(img, box(mx - 10, my + 150, mx + 140, my + 185), 40, 12, 0.6), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.ellipse(box(mx + 100, my + 40, mx + 175, my + 125), outline=(190, 70, 40), width=s(16))
-    d.rounded_rectangle(box(mx, my, mx + 130, my + 170), radius=s(16), fill=(200, 76, 44))
-    d.rectangle(box(mx + 14, my + 8, mx + 30, my + 160), fill=(225, 110, 75))
-    d.ellipse(box(mx, my - 14, mx + 130, my + 18), fill=(150, 50, 28))
-    d.ellipse(box(mx + 10, my - 8, mx + 120, my + 12), fill=(60, 34, 18))
-
-    # Potted plant on the left.
-    img = draw_plant(img, 330, 1180, rng, pot=(150, 80, 50), pot_rim=(175, 98, 64),
-                     leaf=((50, 110, 50), (80, 150, 70)))
-    # Desk lamp light pool plus a gentle vignette.
-    img = vignette(img, 0.45)
+    d.rectangle([w / 2 - 100, y1 + 30, w / 2 + 100, y1 + 46], fill=(60, 50, 60))
+    d.rectangle([w / 2 - 70, y1 + 60, w / 2 + 70, y1 + 72], fill=(90, 80, 90))
     return img
 
 
-def draw_plant(img, x, base_y, rng, pot, pot_rim, leaf):
-    img.paste(shadow(img, box(x - 120, base_y - 10, x + 120, base_y + 30), 40, 14, 0.6), (0, 0))
+def calendar_90s():
+    w, h = 384, 480
+    img = Image.new("RGB", (w, h), (244, 242, 236))
     d = ImageDraw.Draw(img)
-    # Leaves: long ellipses rotated around the stem.
-    leaves = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    for i in range(26):
-        ang = rng.uniform(-150, -30)
-        length = rng.uniform(220, 380)
-        width = length * 0.22
-        layer = Image.new("RGBA", (s(length * 2), s(length * 2)), (0, 0, 0, 0))
-        ld = ImageDraw.Draw(layer)
-        c = leaf[i % 2]
-        ld.ellipse([s(length), s(length - width / 2), s(length * 2), s(length + width / 2)],
-                   fill=c + (255,))
-        ld.line([s(length), s(length), s(length * 2), s(length)],
-                fill=tuple(min(255, v + 30) for v in c) + (255,), width=s(3))
-        layer = layer.rotate(-ang, resample=Image.BICUBIC)
-        leaves.alpha_composite(layer, (s(x - length), s(base_y - 220 - length)))
-    img = img.convert("RGBA")
-    img.alpha_composite(leaves)
-    img = img.convert("RGB")
-    d = ImageDraw.Draw(img)
-    d.polygon([(s(x - 110), s(base_y - 230)), (s(x + 110), s(base_y - 230)),
-               (s(x + 85), s(base_y)), (s(x - 85), s(base_y))], fill=pot)
-    d.rectangle(box(x - 122, base_y - 250, x + 122, base_y - 215), fill=pot_rim)
-    return img
-
-
-# --------------------------------------------------------- 90s cubicle ---
-
-def scene_90s(rng):
-    W, H = s(WIDTH), s(HEIGHT)
-    # Fabric partition: blue-grey with a fine woven texture.
-    img = vertical_gradient(W, H, (104, 112, 128), (86, 94, 110))
-    fine = noise(W, H, 9, rng)
-    weave = (np.sin(np.arange(W) * 2.2)[None, :] * np.sin(np.arange(H) * 2.2)[:, None]) * 3
-    img = add(img, fine + weave.astype(np.float32))
-    # Soft, large-scale mottling of the fabric.
-    blotch = noise(W // 16, H // 16, 1, rng, blur=2)
-    blotch = Image.fromarray(np.clip(blotch * 30 + 128, 0, 255).astype(np.uint8))
-    blotch = blotch.resize((W, H), Image.BICUBIC).filter(ImageFilter.GaussianBlur(s(8)))
-    img = add(img, (np.asarray(blotch, np.float32) - 128) * 0.6)
-    d = ImageDraw.Draw(img)
-    # Panel seams and the aluminium trim along the top.
-    for x in (790, 1610):
-        d.rectangle(box(x - 7, 0, x + 7, DESK_TOP), fill=(150, 154, 160))
-        d.rectangle(box(x - 7, 0, x - 3, DESK_TOP), fill=(190, 194, 200))
-    d.rectangle(box(0, 0, WIDTH, 36), fill=(160, 164, 170))
-    d.rectangle(box(0, 30, WIDTH, 40), fill=(110, 114, 120))
-
-    # A pinned calendar, upper left.
-    cx0, cy0, cx1, cy1 = 160, 140, 560, 640
-    img.paste(shadow(img, box(cx0, cy0, cx1, cy1), 4, 10, 0.5, (6, 10)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rectangle(box(cx0, cy0, cx1, cy1), fill=(244, 242, 236))
-    d.rectangle(box(cx0 + 20, cy0 + 20, cx1 - 20, cy0 + 220), fill=(70, 120, 170))
-    d.polygon([(s(cx0 + 20), s(cy0 + 220)), (s(cx0 + 150), s(cy0 + 110)), (s(cx0 + 240), s(cy0 + 180)),
-               (s(cx0 + 300), s(cy0 + 130)), (s(cx1 - 20), s(cy0 + 200)), (s(cx1 - 20), s(cy0 + 220))],
-              fill=(60, 90, 70))
-    d.ellipse(box(cx1 - 110, cy0 + 50, cx1 - 60, cy0 + 100), fill=(250, 230, 150))
-    d.rectangle(box(cx0 + 20, cy0 + 238, cx1 - 20, cy0 + 262), fill=(200, 60, 50))
-    gw = (cx1 - cx0 - 40) / 7
+    d.rectangle([16, 16, w - 16, 200], fill=(70, 120, 170))
+    d.polygon([(16, 200), (130, 100), (210, 165), (270, 120), (w - 16, 180), (w - 16, 200)], fill=(60, 90, 70))
+    d.ellipse([w - 100, 40, w - 54, 86], fill=(250, 230, 150))
+    d.rectangle([16, 214, w - 16, 238], fill=(200, 60, 50))
+    gw = (w - 32) / 7
     for row in range(5):
         for col in range(7):
-            gx = cx0 + 20 + col * gw
-            gy = cy0 + 276 + row * 42
-            d.rectangle(box(gx + 2, gy, gx + gw - 2, gy + 38), outline=(190, 186, 178), width=s(2))
+            gx = 16 + col * gw
+            gy = 250 + row * 44
+            d.rectangle([gx + 2, gy, gx + gw - 2, gy + 40], outline=(190, 186, 178), width=2)
             if (row, col) in ((1, 3), (3, 5)):
-                d.ellipse(box(gx + 8, gy + 3, gx + gw - 8, gy + 35), outline=(210, 40, 40), width=s(4))
-    d.ellipse(box((cx0 + cx1) / 2 - 10, cy0 + 4, (cx0 + cx1) / 2 + 10, cy0 + 24), fill=(220, 40, 40))
-
-    # A company memo and a phone list on the right partition.
-    for k, (x0, y0, rot) in enumerate(((1850, 160, 3), (2080, 300, -4))):
-        page = Image.new("RGBA", (s(230), s(300)), (250, 250, 246, 255))
-        pd = ImageDraw.Draw(page)
-        for line in range(12):
-            w = rng.integers(110, 190)
-            pd.rectangle([s(20), s(40 + line * 20), s(20 + w), s(46 + line * 20)], fill=(150, 150, 160, 255))
-        pd.rectangle([s(20), s(14), s(120), s(26)], fill=(40, 60, 120, 255))
-        page = page.rotate(rot, expand=True, resample=Image.BICUBIC)
-        sh = Image.new("L", img.size, 0)
-        sh.paste(page.split()[3].point(lambda v: v * 0.5), (s(x0 + 6), s(y0 + 10)))
-        img = Image.composite(Image.new("RGB", img.size, 0), img, sh.filter(ImageFilter.GaussianBlur(s(8))))
-        img = img.convert("RGBA")
-        img.alpha_composite(page, (s(x0), s(y0)))
-        img = img.convert("RGB")
-        d = ImageDraw.Draw(img)
-        d.ellipse(box(x0 + 100, y0 + 4, x0 + 118, y0 + 22), fill=(40, 120, 220))
-
-    # Cool fluorescent light from above.
-    img = light(img, (1200, -200), 1700, (40, 46, 56), 0.7)
-
-    # Light grey laminate desk with a dark edge band.
-    top = vertical_gradient(W, s(DESK_FRONT - DESK_TOP), (176, 174, 168), (204, 202, 196))
-    img.paste(top, (0, s(DESK_TOP)))
-    speck = noise(W, s(DESK_FRONT - DESK_TOP), 5, rng)
-    full = np.zeros((H, W), np.float32)
-    full[s(DESK_TOP):s(DESK_FRONT)] = speck
-    img = add(img, full)
-    d = ImageDraw.Draw(img)
-    d.rectangle(box(0, DESK_TOP - 5, WIDTH, DESK_TOP), fill=(120, 118, 114))
-    d.rectangle(box(0, DESK_FRONT, WIDTH, HEIGHT), fill=(60, 60, 64))
-    d.rectangle(box(0, DESK_FRONT, WIDTH, DESK_FRONT + 8), fill=(110, 110, 116))
-
-    # Mouse mat and mouse, right of the keyboard.
-    mm = box(1700, 1180, 2010, 1340)
-    img.paste(shadow(img, mm, 14, 8, 0.4, (2, 6)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(mm, radius=s(14), fill=(40, 70, 130))
-    d.rounded_rectangle(box(1715, 1192, 1995, 1328), radius=s(10), outline=(80, 120, 190), width=s(3))
-    img.paste(shadow(img, box(1820, 1210, 1900, 1320), 40, 8, 0.6, (4, 8)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(box(1820, 1210, 1900, 1320), radius=s(38), fill=(214, 212, 204))
-    d.line([(s(1860), s(1212)), (s(1860), s(1255))], fill=(170, 168, 160), width=s(3))
-    d.line([(s(1860), s(1210)), (s(1850), s(1150)), (s(1700), s(1110))], fill=(60, 60, 60), width=s(5))
-
-    # Platinum monitor and keyboard.
-    img = draw_monitor(img, (200, 198, 190), (156, 154, 148), (224, 222, 214), rng)
-    img = draw_keyboard(img, (190, 188, 180), (168, 166, 158), (214, 212, 204), rng)
-    d = ImageDraw.Draw(img)
-
-    # Sticky notes on the monitor casing and the partition.
-    for x0, y0, rot, c in ((640, 300, 6, (250, 236, 120)), (1700, 640, -5, (250, 236, 120)),
-                           (1700, 820, 3, (255, 170, 190)), (300, 760, -3, (180, 230, 160))):
-        note = Image.new("RGBA", (s(110), s(110)), c + (255,))
-        nd = ImageDraw.Draw(note)
-        for line in range(3):
-            nd.line([s(14), s(30 + line * 22), s(14 + rng.integers(50, 85)), s(32 + line * 22)],
-                    fill=(60, 60, 140, 255), width=s(3))
-        note = note.rotate(rot, expand=True, resample=Image.BICUBIC)
-        img = img.convert("RGBA")
-        img.alpha_composite(note, (s(x0), s(y0)))
-        img = img.convert("RGB")
-
-    # A desk phone on the left and a stack of paper.
-    px, py = 220, 1150
-    img.paste(shadow(img, box(px, py, px + 330, py + 190), 30, 14, 0.6, (6, 14)), (0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(box(px, py, px + 330, py + 190), radius=s(30), fill=(52, 52, 56))
-    d.rounded_rectangle(box(px + 10, py - 40, px + 320, py + 40), radius=s(36), fill=(66, 66, 70))
-    for r in range(4):
-        for c in range(3):
-            d.rounded_rectangle(box(px + 160 + c * 48, py + 64 + r * 30, px + 196 + c * 48, py + 86 + r * 30),
-                                radius=s(5), fill=(190, 190, 196))
-    d.rectangle(box(px + 30, py + 70, px + 130, py + 110), fill=(120, 150, 110))
-    for k in range(8):
-        y = 1290 - k * 7
-        d.rectangle(box(560 + (k % 3) * 3, y, 690 + (k % 3) * 3, y + 6), fill=(242, 242, 238))
-        d.line([(s(560), s(y + 6)), (s(693), s(y + 6))], fill=(200, 200, 196), width=s(1))
-
-    img = vignette(img, 0.35)
+                d.ellipse([gx + 6, gy + 3, gx + gw - 6, gy + 37], outline=(210, 40, 40), width=3)
     return img
+
+
+def memo(rng):
+    w, h = 256, 330
+    img = Image.new("RGB", (w, h), (250, 250, 246))
+    d = ImageDraw.Draw(img)
+    d.rectangle([22, 18, 130, 30], fill=(40, 60, 120))
+    for line in range(13):
+        d.rectangle([22, 48 + line * 20, 22 + int(rng.integers(120, 210)), 54 + line * 20], fill=(150, 150, 160))
+    return img
+
+
+def sticky(rng, color):
+    img = Image.new("RGB", (128, 128), color)
+    d = ImageDraw.Draw(img)
+    for line in range(3):
+        d.line([(16, 36 + line * 26), (16 + int(rng.integers(60, 96)), 38 + line * 26)], fill=(60, 60, 140), width=4)
+    return img
+
+
+def keyboard_top(base, key, key_top):
+    w, h = 512, 180
+    img = Image.new("RGB", (w, h), base)
+    d = ImageDraw.Draw(img)
+    kw, gap = 22, 4
+    for r in range(6):
+        y = 12 + r * 27
+        x = 12
+        for i in range(15):
+            if r == 5 and 5 < i < 9:
+                continue
+            ww = kw * 4 + gap * 3 if (r == 5 and i == 5) else kw
+            d.rounded_rectangle([x, y, x + ww, y + 23], radius=3, fill=key)
+            d.rounded_rectangle([x + 3, y + 2, x + ww - 3, y + 16], radius=3, fill=key_top)
+            x += ww + gap
+        for i in range(4):
+            px = w - 12 - (4 - i) * (kw + gap)
+            d.rounded_rectangle([px, y, px + kw, y + 23], radius=3, fill=key)
+            d.rounded_rectangle([px + 3, y + 2, px + kw - 3, y + 16], radius=3, fill=key_top)
+    return img
+
+
+def floppy_label(color):
+    img = Image.new("RGB", (128, 128), color)
+    d = ImageDraw.Draw(img)
+    d.rectangle([36, 0, 92, 40], fill=(175, 175, 182))
+    d.rectangle([62, 6, 76, 34], fill=color)
+    d.rectangle([18, 62, 110, 124], fill=(236, 232, 218))
+    for k in range(3):
+        d.line([(26, 78 + k * 14), (96, 78 + k * 14)], fill=(70, 70, 160), width=2)
+    return img
+
+
+def blinds():
+    """Venetian blinds with daylight between the slats (used as a glow)."""
+    img = Image.new("RGB", (256, 384), (255, 244, 220))
+    d = ImageDraw.Draw(img)
+    for k in range(0, 384, 16):
+        d.rectangle([0, k, 256, k + 11], fill=(214, 204, 182))
+        d.line([(0, k + 11), (256, k + 11)], fill=(150, 140, 120), width=2)
+    return img
+
+
+def ceiling_light():
+    img = Image.new("RGB", (256, 256), (255, 255, 250))
+    d = ImageDraw.Draw(img)
+    for k in range(0, 256, 16):
+        d.line([(k, 0), (k, 256)], fill=(226, 230, 236), width=2)
+        d.line([(0, k), (256, k)], fill=(226, 230, 236), width=2)
+    d.rectangle([0, 0, 255, 255], outline=(190, 192, 196), width=8)
+    return img
+
+
+# -------------------------------------------------------------- the rooms ---
+
+DESK_Y = 75                        # height of the desk surface
+SCREEN_W, SCREEN_H = 29.6, 22.2    # 4:3 tube
+SCREEN_Y = DESK_Y + 27.5
+SCREEN_Z = -41.6
+
+
+def add_monitor(sc, casing, casing_dark, sticky_notes=()):
+    """A 14-inch CRT monitor on a swivel stand, screen facing +Z."""
+    sc.cylinder((0, DESK_Y + 1, -55), 24, 2, casing_dark, roughness=0.5)
+    sc.box((0, DESK_Y + 4.5, -55), (12, 5, 12), casing_dark, roughness=0.5)
+    # Front bezel and the tapered back of the tube.
+    sc.box((0, SCREEN_Y - 1.5, -46), (40, 36, 8.5), casing, roughness=0.45)
+    sc.box((0, SCREEN_Y - 0.5, -57), (35, 31, 14), casing, roughness=0.5)
+    sc.box((0, SCREEN_Y + 0.5, -69), (27, 23, 12), casing_dark, roughness=0.55)
+    for i in range(9):
+        sc.box((-12 + i * 3, SCREEN_Y + 14.6, -58), (1.2, 0.4, 9), "#2a2824", shadows=False)
+    # Dark surround of the tube (the tube itself is "screen" in the scene).
+    sc.box((0, SCREEN_Y, -42.0), (SCREEN_W + 2.6, SCREEN_H + 2.6, 0.6), "#141412", roughness=0.3)
+    # Chin: badge, power button and LED.
+    chin = SCREEN_Y - SCREEN_H / 2 - 6
+    sc.box((-13, chin, -41.6), (7, 1.2, 0.3), casing_dark)
+    sc.box((14, chin, -41.6), (3, 1.6, 0.8), casing_dark)
+    sc.sphere((10, chin, -41.6), (0.8, 0.8, 0.8), "#30ff60", emissive="#30ff60", shadows=False)
+    for x, y, rot, tex in sticky_notes:
+        sc.plane((x, y, -41.65), 6, 6, rotation=(0, 0, rot), texture=tex, shadows=False)
+
+
+def add_keyboard(sc, base, tex):
+    sc.box((0, DESK_Y + 1.4, -16), (46, 2.8, 17), base, rotation=(5, 0, 0), roughness=0.55)
+    sc.plane((0, DESK_Y + 2.95, -16), 45, 15.8, rotation=(-85, 0, 0), texture=tex,
+             roughness=0.5, shadows=False)
+    sc.box((0, DESK_Y + 0.4, -33), (0.8, 0.8, 18), "#2a2826", shadows=False)   # cable
+
+
+def room_80s(out, rng):
+    sc = Scene("80s")
+    t_wall = save(wood_panel(rng), out, "wood-panel.jpg")
+    t_desk = save(walnut(rng), out, "walnut.jpg")
+    t_floor = save(carpet(rng, (120, 86, 52)), out, "shag-carpet.jpg")
+    t_ceiling = save(laminate(rng, (226, 220, 206)), out, "ceiling-80s.jpg")
+    t_poster = save(poster_80s(), out, "poster.jpg")
+    t_keys = save(keyboard_top((200, 190, 164), (176, 166, 142), (226, 218, 196)), out, "keyboard-beige.png")
+    t_blinds = save(blinds(), out, "blinds.jpg")
+    t_floppies = [save(floppy_label(c), out, "floppy-%d.png" % i)
+                  for i, c in enumerate([(30, 30, 34), (40, 60, 130), (150, 40, 40)])]
+
+    # A 4 m square den: panelled walls, shag carpet, a window on the left.
+    sc.plane((0, 0, 0), 400, 400, rotation=(-90, 0, 0), texture=t_floor, repeat=(6, 6), roughness=0.95)
+    sc.plane((0, 240, 0), 400, 400, rotation=(90, 0, 0), texture=t_ceiling, repeat=(4, 4))
+    for center, rot in (((0, 120, -90), 0), ((-200, 120, 110), 90), ((200, 120, 110), -90),
+                        ((0, 120, 310), 180)):
+        sc.plane(center, 400, 240, rotation=(0, rot, 0), texture=t_wall, repeat=(8, 2), roughness=0.6)
+    sc.box((0, 5, -89), (400, 10, 2), "#4a2c18")
+    sc.box((-199, 140, 20), (2, 96, 126), "#e8e0cc")
+    sc.plane((-197.8, 140, 20), 116, 86, rotation=(0, 90, 0), texture=t_blinds,
+             emissive="#ffffff", shadows=False)
+
+    # Walnut desk with two pedestals of drawers.
+    sc.box((0, DESK_Y - 2, -50), (150, 4, 76), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.45)
+    for x in (-56, 56):
+        sc.box((x, (DESK_Y - 4) / 2, -50), (36, DESK_Y - 4, 70), "#ffffff", texture=t_desk, roughness=0.5)
+        for k in range(3):
+            sc.box((x, 16 + k * 19, -14.8), (32, 16, 1), "#5c371e", roughness=0.5)
+            sc.box((x, 20 + k * 19, -14), (10, 1.4, 1.4), "#c8b27a", metalness=0.8, roughness=0.3)
+
+    add_monitor(sc, "#d6ccb2", "#aaa088")
+    add_keyboard(sc, "#c8bea4", t_keys)
+
+    # Poster and a shelf with books and a cassette deck.
+    sc.box((-110, 150, -89.4), (52, 70, 1.2), "#1e1a18")
+    sc.plane((-110, 150, -88.7), 46, 64, texture=t_poster, roughness=0.3)
+    sc.box((105, 140, -78), (80, 2.5, 22), "#5c371e")
+    x = 70.0
+    for c in ["#962820", "#284670", "#c8a03c", "#3c643c", "#783c6e", "#b45a28", "#323240", "#962820"]:
+        bw = float(rng.uniform(3, 5.5))
+        bh = float(rng.uniform(18, 26))
+        sc.box((x + bw / 2, 141.25 + bh / 2, -80), (bw, bh, 16), c, roughness=0.8)
+        x += bw + 0.4
+    sc.box((128, 147, -80), (24, 11, 16), "#2a282a", roughness=0.4)
+    sc.box((128, 149, -71.9), (18, 4, 0.2), "#101012")
+
+    # Banker's lamp.
+    sc.cylinder((55, DESK_Y + 1, -62), 16, 2, "#b89a50", metalness=0.9, roughness=0.3)
+    sc.cylinder((55, DESK_Y + 15, -62), 1.6, 28, "#b89a50", metalness=0.9, roughness=0.3)
+    sc.box((55, DESK_Y + 30, -57), (30, 5, 11), "#1e6a3a", rotation=(20, 0, 0), roughness=0.25)
+    sc.sphere((55, DESK_Y + 27.5, -56), (24, 2.2, 6), "#fff2c8", emissive="#ffe8b0", shadows=False)
+    sc.lights.append({"type": "point", "position": [55, DESK_Y + 24, -52], "color": "#ffd9a0",
+                      "intensity": 1.4, "range": 160})
+
+    # Potted plant: leaves are long, flat ellipsoids leaning out of the pot.
+    sc.cylinder((-58, DESK_Y + 9, -62), 18, 18, "#96502f", roughness=0.8)
+    sc.cylinder((-58, DESK_Y + 18.5, -62), 20, 2, "#af6240", roughness=0.8)
+    for i in range(14):
+        ang = math.radians(i * (360 / 14) + float(rng.uniform(-10, 10)))
+        tilt = float(rng.uniform(25, 55))
+        length = float(rng.uniform(22, 34))
+        reach = math.sin(math.radians(tilt)) * length / 2
+        sc.sphere((-58 + math.cos(ang) * reach, DESK_Y + 20 + math.cos(math.radians(tilt)) * length / 2,
+                   -62 + math.sin(ang) * reach),
+                  (3.2, length, 1.0), "#3c8a3c" if i % 2 else "#2c6e30",
+                  rotation=(tilt * math.sin(ang), 0, -tilt * math.cos(ang)), roughness=0.6)
+
+    # Coffee mug and floppy disks.
+    sc.cylinder((42, DESK_Y + 5, -20), 8.5, 10, "#c84c2c", roughness=0.35)
+    sc.cylinder((42, DESK_Y + 9.6, -20), 7.5, 0.4, "#3c2214", roughness=0.2, shadows=False)
+    sc.box((47, DESK_Y + 5, -20), (2.4, 6, 1.2), "#c84c2c", roughness=0.35)
+    for i, tex in enumerate(t_floppies):
+        sc.box((32 + i * 1.2, DESK_Y + 0.2 + i * 0.35, -36 + i * 0.8), (9, 0.3, 9), "#ffffff",
+               rotation=(0, 8 - i * 9, 0), texture=tex, roughness=0.5)
+
+    sc.lights += [
+        {"type": "directional", "rotation": quat(-50, -25, 0), "color": "#ffe6c8", "intensity": 0.55,
+         "shadows": True},
+        {"type": "directional", "rotation": quat(-15, -95, 0), "color": "#fff4e0", "intensity": 0.45,
+         "shadows": False},
+        {"type": "point", "position": [0, 220, 40], "color": "#ffe2b8", "intensity": 0.8, "range": 400},
+    ]
+    return finish(sc, background="#1a120c", ambient=("#806048", 0.35))
+
+
+def room_90s(out, rng):
+    sc = Scene("90s")
+    t_fabric = save(fabric(rng, (96, 104, 122)), out, "fabric.jpg")
+    t_desk = save(laminate(rng, (194, 192, 186)), out, "laminate.jpg")
+    t_floor = save(carpet(rng, (70, 74, 84)), out, "office-carpet.jpg")
+    t_ceiling = save(ceiling_tile(rng), out, "ceiling-tile.jpg")
+    t_wall = save(laminate(rng, (204, 198, 184)), out, "office-wall.jpg")
+    t_light = save(ceiling_light(), out, "ceiling-light.jpg")
+    t_calendar = save(calendar_90s(), out, "calendar.jpg")
+    t_memo = save(memo(rng), out, "memo.jpg")
+    t_keys = save(keyboard_top((190, 188, 180), (168, 166, 158), (214, 212, 204)), out, "keyboard-grey.png")
+    t_yellow = save(sticky(rng, (250, 236, 120)), out, "sticky-yellow.png")
+    t_pink = save(sticky(rng, (255, 170, 190)), out, "sticky-pink.png")
+    t_green = save(sticky(rng, (180, 230, 160)), out, "sticky-green.png")
+
+    # Open-plan floor with fluorescent panels in a tiled ceiling.
+    sc.plane((0, 0, 0), 1200, 1200, rotation=(-90, 0, 0), texture=t_floor, repeat=(20, 20), roughness=0.95)
+    sc.plane((0, 260, 0), 1200, 1200, rotation=(90, 0, 0), texture=t_ceiling, repeat=(20, 20))
+    for center, length, rot in (((0, 130, -500), 1200, 0), ((0, 130, 500), 1200, 180),
+                                ((-600, 130, 0), 1000, 90), ((600, 130, 0), 1000, -90)):
+        sc.plane(center, length, 260, rotation=(0, rot, 0), texture=t_wall, repeat=(length / 200, 1))
+    for x in (-300, 0, 300):
+        for z in (-300, 0, 300):
+            sc.plane((x, 259.5, z), 60, 120, rotation=(90, 0, 0), texture=t_light,
+                     emissive="#ffffff", shadows=False)
+
+    # Fabric partitions with aluminium trim: this cubicle and the neighbours.
+    def partition(center, length, rot):
+        sc.box(center, (length, 150, 6), "#ffffff", rotation=(0, rot, 0), texture=t_fabric,
+               repeat=(length / 60, 2.5), roughness=0.95)
+        x, _, z = center
+        sc.box((x, 151, z), (length + 1, 3, 7), "#b4b8be", rotation=(0, rot, 0), metalness=0.7, roughness=0.35)
+    partition((0, 75, -92), 190, 0)
+    partition((-95, 75, -10), 170, 90)
+    partition((95, 75, -10), 170, 90)
+    for x in (-290, 290):
+        partition((x, 75, -92), 190, 0)
+        partition((x, 75, -280), 190, 0)
+    for x in (-190, 190):
+        partition((x, 75, -186), 170, 90)
+    partition((0, 75, -280), 190, 0)
+
+    # Laminate desk on metal legs, and a PC tower on the floor.
+    sc.box((0, DESK_Y - 1.5, -55), (186, 3, 70), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.4)
+    sc.box((0, DESK_Y - 4, -20.5), (186, 2, 1), "#3c3c40", roughness=0.5)
+    for x in (-88, 88):
+        sc.box((x, (DESK_Y - 3) / 2, -55), (4, DESK_Y - 3, 64), "#5a5c62", metalness=0.6, roughness=0.4)
+    sc.box((60, 22, -60), (20, 44, 45), "#cbc7b8", roughness=0.5)
+    sc.box((60, 36, -37.4), (14, 3, 0.4), "#3a3a3c")
+    sc.box((60, 28, -37.4), (10, 1.5, 0.4), "#3a3a3c")
+
+    add_monitor(sc, "#c8c6be", "#9c9a94",
+                sticky_notes=[(-19, SCREEN_Y + 13, 6, t_yellow), (19.5, SCREEN_Y - 6, -5, t_pink)])
+    add_keyboard(sc, "#bebcb4", t_keys)
+
+    # Calendar, memos and a note pinned to the partitions.
+    sc.plane((-55, 115, -88.8), 34, 42.5, texture=t_calendar, roughness=0.6)
+    sc.plane((50, 118, -88.8), 21, 27, rotation=(0, 0, 3), texture=t_memo, roughness=0.6)
+    sc.plane((72, 110, -88.8), 21, 27, rotation=(0, 0, -4), texture=t_memo, roughness=0.6)
+    sc.plane((-91.8, 110, -40), 7, 7, rotation=(0, 90, 0), texture=t_green, shadows=False)
+
+    # Mouse mat and mouse, phone, styrofoam cup and a stack of paper.
+    sc.box((36, DESK_Y + 0.2, -20), (22, 0.4, 18), "#284682", roughness=0.8)
+    sc.sphere((36, DESK_Y + 1.6, -20), (6, 3.2, 10), "#d6d4cc", roughness=0.4)
+    sc.box((36, DESK_Y + 0.6, -36), (0.5, 0.5, 22), "#3c3c3c", shadows=False)
+    sc.box((-62, DESK_Y + 3, -40), (22, 6, 20), "#343438", rotation=(0, 10, 0), roughness=0.45)
+    sc.box((-66, DESK_Y + 7, -42), (8, 4, 20), "#3c3c40", rotation=(0, 10, 0), roughness=0.45)
+    sc.box((-56, DESK_Y + 6.2, -34), (8, 0.5, 6), "#788c6c", rotation=(0, 10, 0), roughness=0.3)
+    sc.cylinder((60, DESK_Y + 5.5, -30), 8, 11, "#f4f2ec", roughness=0.7)
+    sc.cylinder((60, DESK_Y + 10.6, -30), 7.2, 0.4, "#4a2c18", roughness=0.2, shadows=False)
+    for k in range(6):
+        sc.box((-40 + (k % 2) * 0.6, DESK_Y + 0.3 + k * 0.4, -62), (21, 0.4, 29.7), "#f2f2ee",
+               rotation=(0, k * 2, 0))
+
+    sc.lights += [
+        {"type": "directional", "rotation": quat(-70, 10, 0), "color": "#eef4ff", "intensity": 0.7,
+         "shadows": True},
+        {"type": "directional", "rotation": quat(-20, 160, 0), "color": "#e8eef8", "intensity": 0.25,
+         "shadows": False},
+        {"type": "point", "position": [0, 240, -20], "color": "#f0f6ff", "intensity": 1.0, "range": 500},
+    ]
+    return finish(sc, background="#202228", ambient=("#7c8494", 0.4))
+
+
+def finish(sc, background, ambient):
+    return {
+        "name": sc.name,
+        "background": background,
+        "ambient": {"color": ambient[0], "intensity": ambient[1]},
+        # An orbit camera around the middle of the screen; angles in degrees,
+        # yaw turns left/right, negative pitch looks down from above.
+        "camera": {"target": [0, SCREEN_Y, SCREEN_Z], "distance": 95, "yaw": 0, "pitch": -10,
+                   "fov": 40, "near": 2, "far": 3000,
+                   "minDistance": 30, "maxDistance": 280,
+                   "minYaw": -80, "maxYaw": 80, "minPitch": -55, "maxPitch": 30},
+        "screen": {"position": [0, SCREEN_Y, SCREEN_Z], "size": [SCREEN_W, SCREEN_H], "rotation": quat()},
+        # Light cast by the screen, in the profile's text colour.
+        "screenGlow": {"position": [0, SCREEN_Y, SCREEN_Z + 15], "intensity": 0.6, "range": 120},
+        "lights": sc.lights,
+        "objects": sc.objects,
+    }
 
 
 def main():
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out_dir = os.path.join(repo, "app", "qml", "images")
-    os.makedirs(out_dir, exist_ok=True)
-    for name, painter, seed in (("office-80s.jpg", scene_80s, 1984),
-                                ("office-90s.jpg", scene_90s, 1995)):
-        rng = np.random.default_rng(seed)
-        img = painter(rng).resize((WIDTH, HEIGHT), Image.LANCZOS)
-        path = os.path.join(out_dir, name)
-        img.save(path, quality=86, optimize=True, progressive=True)
-        print("wrote", os.path.relpath(path, repo), file=sys.stderr)
+    out = os.path.join(repo, "app", "qml", "office")
+    os.makedirs(out, exist_ok=True)
+    for name, builder, seed in (("office-80s.json", room_80s, 1984), ("office-90s.json", room_90s, 1995)):
+        scene = builder(out, np.random.default_rng(seed))
+        with open(os.path.join(out, name), "w") as f:
+            json.dump(scene, f, indent=1)
+            f.write("\n")
+        print("wrote %s: %d objects" % (name, len(scene["objects"])), file=sys.stderr)
 
 
 if __name__ == "__main__":

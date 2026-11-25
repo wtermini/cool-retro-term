@@ -95,6 +95,12 @@ Item {
         tabsModel.setProperty(index, "customTitle", normalizeTitle(name))
     }
 
+    /// Office mode: back to the starting view of the room.
+    function resetOfficeView() {
+        if (officeLoader.item)
+            officeLoader.item.resetView()
+    }
+
     function renameCurrentTab() {
         editingIndex = currentIndex
     }
@@ -296,18 +302,22 @@ Item {
             }
         }
 
-        OfficeScene {
-            id: office
+        Item {
+            id: terminalArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            scene: appSettings.officeScene
+
+            // Office mode: the terminal is laid out as a 4:3 screen and shown
+            // on the monitor in a 3D room (OfficeScene.qml), which covers it.
+            readonly property bool officeMode: appSettings.officeScene === "80s" || appSettings.officeScene === "90s"
+            readonly property real screenHeight: Math.min(height, width * 3 / 4)
 
             StackLayout {
                 id: stack
-                x: office.screenRect.x
-                y: office.screenRect.y
-                width: office.screenRect.width
-                height: office.screenRect.height
+                width: terminalArea.officeMode ? Math.round(terminalArea.screenHeight * 4 / 3) : terminalArea.width
+                height: terminalArea.officeMode ? Math.round(terminalArea.screenHeight) : terminalArea.height
+                x: (terminalArea.width - width) / 2
+                y: (terminalArea.height - height) / 2
                 currentIndex: tabBar.currentIndex
 
                 Repeater {
@@ -334,6 +344,18 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            Loader {
+                id: officeLoader
+                anchors.fill: parent
+                active: terminalArea.officeMode
+                sourceComponent: OfficeScene {
+                    scene: appSettings.officeScene
+                    screenItem: stack
+                    time: timeManager.time
+                    glowColor: appSettings.fontColor
                 }
             }
         }

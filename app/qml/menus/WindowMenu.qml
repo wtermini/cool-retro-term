@@ -69,6 +69,8 @@ MenuBar {
             MenuItem { text: qsTr("Off"); checkable: true; checked: appSettings.officeScene === ""; onTriggered: appSettings.officeScene = "" }
             MenuItem { text: qsTr("80s Den"); checkable: true; checked: appSettings.officeScene === "80s"; onTriggered: appSettings.officeScene = "80s" }
             MenuItem { text: qsTr("90s Cubicle"); checkable: true; checked: appSettings.officeScene === "90s"; onTriggered: appSettings.officeScene = "90s" }
+            MenuSeparator { }
+            MenuItem { text: qsTr("Reset View"); enabled: appSettings.officeScene !== ""; onTriggered: terminalTabs.resetOfficeView() }
         }
     }
     Menu {
