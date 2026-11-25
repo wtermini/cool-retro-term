@@ -392,18 +392,6 @@ def add_monitor(sc, mon, casing, casing_dark, sticky_notes=()):
                      shadows=False, group="sticky-notes")
 
 
-def add_old_monitor(sc, x, z, yaw, casing, casing_dark):
-    """A small, older monitor, switched off, turned towards the chair."""
-    a = math.radians(yaw)
-
-    def at(dx, dy, dz):   # local offset to world, turned by yaw about Y
-        return (x + dx * math.cos(a) + dz * math.sin(a), DESK_Y + dy, z - dx * math.sin(a) + dz * math.cos(a))
-    sc.box(at(0, 1, 0), (22, 2, 22), casing_dark, rotation=(0, yaw, 0), roughness=0.5)
-    sc.box(at(0, 17, 4), (34, 30, 8), casing, rotation=(0, yaw, 0), roughness=0.45)
-    sc.box(at(0, 17.5, -8), (29, 25, 18), casing, rotation=(0, yaw, 0), roughness=0.5)
-    sc.plane(at(0, 18.5, 8.05), 25, 19, "#101412", rotation=(0, yaw, 0), roughness=0.15)
-
-
 def add_keyboard(sc, base, tex):
     sc.box((0, DESK_Y + 1.4, -16), (46, 2.8, 17), base, rotation=(5, 0, 0), roughness=0.55)
     sc.plane((0, DESK_Y + 2.95, -16), 45, 15.8, rotation=(-85, 0, 0), texture=tex,
@@ -550,8 +538,7 @@ def room_90s(out, rng, mon):
 
     add_monitor(sc, mon, "#d8d6cc", "#a8a69e",
                 sticky_notes=[t_yellow, t_pink])
-    # An older monitor off to the side, a desk lamp and small speakers.
-    add_old_monitor(sc, -68, -64, 28, "#d0ccbc", "#a29e90")
+    # A desk lamp and small beige speakers.
     sc.cylinder((80, DESK_Y + 1, -66), 13, 2, "#1c1c1e", roughness=0.35)
     sc.cylinder((80, DESK_Y + 16, -66), 1.4, 30, "#1c1c1e", metalness=0.6, roughness=0.3)
     sc.sphere((80, DESK_Y + 31, -62), (14, 9, 14), "#1c1c1e", roughness=0.3)
@@ -559,8 +546,8 @@ def room_90s(out, rng, mon):
     sc.lights.append({"type": "point", "position": [80, DESK_Y + 24, -58], "color": "#fff0d8",
                       "intensity": 0.6, "range": 90})
     for x in (-mon.half_width - 7, mon.half_width + 7):
-        sc.box((x, DESK_Y + 7, -40), (9, 14, 11), "#4a4c50", roughness=0.5)
-        sc.cylinder((x, DESK_Y + 9, -34.4), 5, 0.4, "#2a2c30", rotation=(90, 0, 0), roughness=0.8)
+        sc.box((x, DESK_Y + 7, -40), (9, 14, 11), "#d2ccb8", roughness=0.5)
+        sc.cylinder((x, DESK_Y + 9, -34.4), 5, 0.4, "#8c8674", rotation=(90, 0, 0), roughness=0.8)
     add_keyboard(sc, "#bebcb4", t_keys)
 
     # Calendar, memos and a note pinned to the partitions.

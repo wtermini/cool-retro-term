@@ -1939,98 +1939,6 @@
    "group": "sticky-notes"
   },
   {
-   "shape": "box",
-   "position": [
-    -68.0,
-    76.0,
-    -64.0
-   ],
-   "size": [
-    22.0,
-    2.0,
-    22.0
-   ],
-   "rotation": [
-    0.0,
-    0.241922,
-    0.0,
-    0.970296
-   ],
-   "color": "#a29e90",
-   "roughness": 0.5,
-   "metalness": 0.0,
-   "shadows": true
-  },
-  {
-   "shape": "box",
-   "position": [
-    -66.122,
-    92.0,
-    -60.468
-   ],
-   "size": [
-    34.0,
-    30.0,
-    8.0
-   ],
-   "rotation": [
-    0.0,
-    0.241922,
-    0.0,
-    0.970296
-   ],
-   "color": "#d0ccbc",
-   "roughness": 0.45,
-   "metalness": 0.0,
-   "shadows": true
-  },
-  {
-   "shape": "box",
-   "position": [
-    -71.756,
-    92.5,
-    -71.064
-   ],
-   "size": [
-    29.0,
-    25.0,
-    18.0
-   ],
-   "rotation": [
-    0.0,
-    0.241922,
-    0.0,
-    0.970296
-   ],
-   "color": "#d0ccbc",
-   "roughness": 0.5,
-   "metalness": 0.0,
-   "shadows": true
-  },
-  {
-   "shape": "plane",
-   "position": [
-    -64.221,
-    93.5,
-    -56.892
-   ],
-   "size": [
-    25.0,
-    19.0,
-    1.0
-   ],
-   "rotation": [
-    0.0,
-    0.241922,
-    0.0,
-    0.970296
-   ],
-   "color": "#101412",
-   "roughness": 0.15,
-   "metalness": 0.0,
-   "shadows": true
-  },
-  {
    "shape": "cylinder",
    "position": [
     80.0,
@@ -2141,7 +2049,7 @@
     0.0,
     1.0
    ],
-   "color": "#4a4c50",
+   "color": "#d2ccb8",
    "roughness": 0.5,
    "metalness": 0.0,
    "shadows": true
@@ -2164,7 +2072,7 @@
     0.0,
     0.707107
    ],
-   "color": "#2a2c30",
+   "color": "#8c8674",
    "roughness": 0.8,
    "metalness": 0.0,
    "shadows": true
@@ -2187,7 +2095,7 @@
     0.0,
     1.0
    ],
-   "color": "#4a4c50",
+   "color": "#d2ccb8",
    "roughness": 0.5,
    "metalness": 0.0,
    "shadows": true
@@ -2210,7 +2118,7 @@
     0.0,
     0.707107
    ],
-   "color": "#2a2c30",
+   "color": "#8c8674",
    "roughness": 0.8,
    "metalness": 0.0,
    "shadows": true
