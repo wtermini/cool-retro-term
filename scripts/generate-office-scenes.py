@@ -513,41 +513,106 @@ LCD_WIDE = Monitor("wide", 47.4, 29.6, DESK_Y + 9 + 3.5 + 29.6 / 2, -38, 25.7, D
 LCD_WIDE.lcd = (2.0, 2.2, 3.5)
 
 
-# Video terminals for the 70s room: the same screens as the CRT monitors,
-# in a chunky two-tone case (Widescreen is a wide, 132-column-style model).
-TERM_STANDARD = Monitor("standard", 29.6, 22.2, DESK_Y + 27.5, -41.6, (29.6 + 14) / 2,
-                        DESK_Y + 27.5 + 1 + (22.2 + 16) / 2, 95)
-TERM_WIDE = Monitor("wide", 47.0, 29.4, DESK_Y + 31, -29.6, (47.0 + 14) / 2, DESK_Y + 31 + 1 + (29.4 + 16) / 2, 110)
+# Video terminals for the 70s room: one smooth off-white piece with the
+# keyboard built into a sloped deck at the front and the screen deep in a
+# bevelled recess (Widescreen is a wide, 132-column-style model).
+TERM_BEVEL, TERM_DEPTH, TERM_TOP = 3.5, 4.0, 7.0   # recess width and depth; face above it
 
 
-def add_terminal(sc, mon, front, body, base, sticky_notes=()):
-    """A 70s video terminal: a cream front panel round the screen, a deep
-    burnt-orange body and a plinth; places for notes on the panel's top
-    corners and the body's sides."""
+def terminal_monitor(name, w, h, z, distance):
+    sy = DESK_Y + 15 + h / 2          # screen bottom 15 cm above the desk, over the deck
+    return Monitor(name, w, h, sy, z, (w + 20) / 2, sy + h / 2 + TERM_BEVEL + TERM_TOP, distance)
+
+
+TERM_STANDARD = terminal_monitor("standard", 29.6, 22.2, -48, 98)
+TERM_WIDE = terminal_monitor("wide", 47.0, 29.4, -48, 112)
+
+
+def keyboard_terminal():
+    """A terminal's built-in keyboard: grey keys, dark grey modifiers and a
+    long dark space bar, a numeric keypad on the right."""
+    w, h = 640, 240
+    img = Image.new("RGB", (w, h), (226, 222, 210))
+    d = ImageDraw.Draw(img)
+    light, dark, top_light, top_dark = (150, 152, 150), (64, 66, 70), (176, 178, 176), (86, 88, 92)
+    kw, gap = 24, 5
+    for r in range(5):
+        y = 14 + r * 34
+        x = 14 + r * 6
+        for i in range(14 - (r == 4) * 6):
+            wide = 6 if (r == 4 and i == 2) else 1
+            width = kw * wide + gap * (wide - 1)
+            is_dark = r == 0 or i in (0, 13) or (r == 4 and i == 2) or (i > 10 and r % 2)
+            d.rounded_rectangle([x, y, x + width, y + 28], radius=3, fill=dark if is_dark else light)
+            d.rounded_rectangle([x + 3, y + 2, x + width - 3, y + 20], radius=3, fill=top_dark if is_dark else top_light)
+            x += width + gap
+        for i in range(4):   # keypad
+            px = w - 14 - (4 - i) * (kw + gap)
+            is_dark = r == 0 or i == 3
+            d.rounded_rectangle([px, y, px + kw, y + 28], radius=3, fill=dark if is_dark else light)
+            d.rounded_rectangle([px + 3, y + 2, px + kw - 3, y + 20], radius=3, fill=top_dark if is_dark else top_light)
+    return img
+
+
+def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
+    """The terminal, screen facing +Z: a keyboard deck at the front, a body
+    whose face sits in front of the screen with a bevelled recess round it,
+    and a flat top with vents. Places for notes on the face's top corners
+    and the body's sides."""
     sy, sz = mon.y, mon.z
-    width, height = mon.w + 14, mon.h + 16
-    sc.box((0, sy + 1, sz - 3.75), (width, height, 6.5), front, roughness=0.5)
-    sc.box((0, sy, sz - 22), (width - 2, height - 2, 32), body, roughness=0.55)
-    sc.box((0, sy + height / 2 + 0.5, sz - 20), (width - 6, 2, 26), body, roughness=0.55)   # hood
-    bottom = sy + 1 - height / 2
-    sc.box((0, DESK_Y + (bottom - DESK_Y) / 2, sz - 18), (width - 8, bottom - DESK_Y, 26), base, roughness=0.6)
-    sc.box((0, sy, sz - 0.6), (mon.w + 2.6, mon.h + 2.6, 0.6), "#141412", roughness=0.3)
-    # Brightness knob, power switch and its lamp under the screen.
-    chin = sy - mon.h / 2 - 4.5
-    sc.cylinder((width / 2 - 5, chin, sz - 0.2), 2.4, 1, base, rotation=(90, 0, 0), roughness=0.4)
-    sc.box((width / 2 - 10, chin, sz - 0.3), (2.4, 1.6, 0.8), "#303030")
-    sc.sphere((width / 2 - 13, chin, sz - 0.3), (0.9, 0.9, 0.9), "#ff6020", emissive="#ff6020", shadows=False)
-    for i in range(10):   # vents along the top
-        sc.box((-width / 2 + 6 + i * (width - 12) / 9, sy + height / 2 + 1.6, sz - 20), (1.0, 0.3, 14), base,
-               shadows=False)
+    W = mon.w + 20
+    B, D = TERM_BEVEL, TERM_DEPTH
+    top = mon.top                      # top of the face and the body
+    face_z = sz + D
+    left, right = -mon.w / 2, mon.w / 2
+    upper, lower = sy + mon.h / 2, sy - mon.h / 2
+    deck_back = face_z
+
+    # The body behind the screen, and the flat top with two groups of vents.
+    body_depth = 34
+    sc.box((0, (DESK_Y + top) / 2, sz - body_depth / 2 - 1.0), (W, top - DESK_Y, body_depth - 1.2), shell, roughness=0.45)
+    sc.box((0, top + 0.6, sz - body_depth / 2 + D / 2), (W, 1.2, body_depth + D), shell, roughness=0.45)
+    for group in (-1, 1):
+        for row in range(4):
+            for col in range(5):
+                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, top + 1.25, sz - 6 - row * 4), (W / 26, 0.1, 1.2),
+                       "#5a5a56", shadows=False)
+    # The face in front of the screen: flat panels round a bevelled recess.
+    t = 1.2
+    sc.box((0, (upper + B + top) / 2, face_z - t / 2), (W, top - upper - B, t), shell, roughness=0.45)
+    face_bottom = lower - B
+    sc.box((0, (face_bottom + DESK_Y + 9) / 2, face_z - t / 2), (W, face_bottom - DESK_Y - 9, t), shell, roughness=0.45)
+    side_w = W / 2 - mon.w / 2 - B
+    for sign in (-1, 1):
+        sc.box((sign * (W / 2 - side_w / 2), sy, face_z - t / 2), (side_w, mon.h + 2 * B, t), shell, roughness=0.45)
+        sc.box((sign * W / 2, (DESK_Y + top) / 2, (sz + face_z) / 2 - 0.2), (0.01, top - DESK_Y, D), shell)
+    # The recess: four sloping panels from the screen's edge out to the face.
+    L = math.hypot(B, D)
+    a = math.degrees(math.atan2(D, B))
+    sc.box((0, upper + B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(a, 0, 0), roughness=0.5)
+    sc.box((0, lower - B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(-a, 0, 0), roughness=0.5)
+    sc.box((left - B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, a, 0), roughness=0.5)
+    sc.box((right + B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, -a, 0), roughness=0.5)
+    sc.box((0, sy, sz - 0.6), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", roughness=0.3)
+    # The keyboard deck, sloping down towards you, with the keys on top.
+    deck_len, slope = 30, 6
+    deck_y = DESK_Y + 4.5
+    sc.box((0, deck_y, deck_back + deck_len / 2 - 1), (W, 9, deck_len), shell, rotation=(slope, 0, 0), roughness=0.45)
+    kx = math.radians(slope)
+    top_y = deck_y + 4.5 * math.cos(kx) + 0.05
+    sc.plane((0, top_y - 2 * math.tan(kx), deck_back + deck_len / 2 + 1 + 4.5 * math.sin(kx)), W - 6, deck_len - 8,
+             rotation=(-90 + slope, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
+    # A small badge under the screen, and the power lamp.
+    sc.box((-mon.w / 4, lower - B - 3, face_z + 0.05), (8, 1.6, 0.2), "#3a3a44")
+    sc.sphere((W / 2 - 4, lower - B - 3, face_z + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
+
     textures = list(sticky_notes) + [None, None]
-    top_border = mon.top - (sy + mon.h / 2)
-    size = min(6, top_border - 1)
-    note_y = sy + mon.h / 2 + top_border / 2
-    sc.spot("bezel-left", (-mon.w / 2 + size / 2 + 1, note_y, sz - 0.45), size, (0, 0, 4), textures[0])
-    sc.spot("right-side", ((width - 2) / 2 + 0.05, sy - 2, sz - 10), 6, (0, 90, -5), textures[1])
-    sc.spot("bezel-right", (mon.w / 2 - size / 2 - 1, note_y, sz - 0.45), size, (0, 0, -3))
-    sc.spot("left-side", (-(width - 2) / 2 - 0.05, sy - 4, sz - 14), 6, (0, -90, 4))
+    size = min(6, TERM_TOP - 1)
+    note_y = upper + B + TERM_TOP / 2
+    sc.spot("bezel-left", (left + size / 2, note_y, face_z + 0.05), size, (0, 0, 4), textures[0])
+    sc.spot("right-side", (W / 2 + 0.05, sy - 2, sz - 8), 6, (0, 90, -5), textures[1])
+    sc.spot("bezel-right", (right - size / 2, note_y, face_z + 0.05), size, (0, 0, -3))
+    sc.spot("left-side", (-W / 2 - 0.05, sy - 4, sz - 12), 6, (0, -90, 4))
 
 
 def add_lcd(sc, mon, bezel, back, stand, glossy=False, power="#40a0ff", sticky_notes=()):
@@ -837,7 +902,6 @@ def room_70s(out, rng, mon):
     t_ceiling = save(ceiling_tile(rng), out, "ceiling-tile.jpg")
     t_light = save(ceiling_light(), out, "ceiling-light.jpg")
     t_paper = save(greenbar(), out, "greenbar.jpg")
-    t_keys = save(keyboard_top((214, 204, 180), (120, 80, 50), (156, 104, 66)), out, "keyboard-70s.png")
     t_cal = save(calendar_90s(), out, "calendar.jpg")
     t_n1 = save(sticky(rng, (250, 236, 120)), out, "sticky-yellow.png")
     t_n2 = save(sticky(rng, (255, 170, 190)), out, "sticky-pink.png")
@@ -896,7 +960,7 @@ def room_70s(out, rng, mon):
     sc.spot("wall-1", (-60, 116, -99.3), 7, (0, 0, -5), t_n3)
     sc.spot("wall-2", (60, 112, -99.3), 7, (0, 0, 4))
     sc.spot("wall-3", (100, 104, -99.3), 7, (0, 0, -3))
-    sc.spot("desk", (-34, DESK_Y + 0.06, -12), 7, (-90, 12, 0))
+    sc.spot("desk", (-48, DESK_Y + 0.06, -8), 7, (-90, 12, 0))
 
     # A steel tanker desk.
     sc.box((0, DESK_Y - 1.5, -45), (156, 3, 82), "#ffffff", texture=t_desk, repeat=(2, 1), roughness=0.4)
@@ -906,8 +970,8 @@ def room_70s(out, rng, mon):
             sc.box((x, 14 + k * 20, -6.6), (34, 17, 1), "#7a8a78", roughness=0.4)
             sc.box((x, 19 + k * 20, -5.8), (12, 1.6, 1.4), "#c8c8c0", metalness=0.6, roughness=0.3)
 
-    add_terminal(sc, mon, "#e8dcc0", "#c06a2c", "#5a3a24", sticky_notes=[t_n1, t_n2])
-    add_keyboard(sc, "#d6ccb4", t_keys)
+    t_terminal_keys = save(keyboard_terminal(), out, "keyboard-terminal.png")
+    add_terminal(sc, mon, "#e6e2d6", "#d0cbbd", t_terminal_keys, sticky_notes=[t_n1, t_n2])
 
     # Punch cards, a box of them, an orange mug and a pen holder.
     for k in range(5):
