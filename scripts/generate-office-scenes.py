@@ -516,7 +516,7 @@ LCD_WIDE.lcd = (2.0, 2.2, 3.5)
 # Video terminals for the 70s room: one smooth off-white piece with the
 # keyboard built into a sloped deck at the front and the screen deep in a
 # bevelled recess (Widescreen is a wide, 132-column-style model).
-TERM_BEVEL, TERM_DEPTH, TERM_TOP = 3.5, 4.0, 7.0   # recess width and depth; face above it
+TERM_BEVEL, TERM_DEPTH, TERM_TOP = 5.0, 3.0, 7.0   # recess width and depth; face above it
 
 
 def terminal_monitor(name, w, h, z, distance):
@@ -566,49 +566,66 @@ def add_terminal(sc, mon, shell, recess, keys_texture, sticky_notes=()):
     face_z = sz + D
     left, right = -mon.w / 2, mon.w / 2
     upper, lower = sy + mon.h / 2, sy - mon.h / 2
-    deck_back = face_z
 
-    # The body behind the screen, and the flat top with two groups of vents.
-    body_depth = 34
-    sc.box((0, (DESK_Y + top) / 2, sz - body_depth / 2 - 1.0), (W, top - DESK_Y, body_depth - 1.2), shell, roughness=0.45)
-    sc.box((0, top + 0.6, sz - body_depth / 2 + D / 2), (W, 1.2, body_depth + D), shell, roughness=0.45)
-    for group in (-1, 1):
+    # The body: a block from the back to the face, with its top and front
+    # edges rounded off (cylinders along the edges, spheres at the corners).
+    r = 3.0                            # radius of the rounded edges
+    lid = top + 1.2                    # top of the lid
+    back = sz - 34
+    soft = dict(roughness=0.5)
+    sc.box((0, (DESK_Y + lid - r) / 2, (back + sz - 1) / 2), (W, lid - r - DESK_Y, sz - 1 - back), shell, **soft)
+    sc.box((0, lid - r / 2, (back + face_z) / 2), (W, r, face_z - back - 2 * r), shell, **soft)
+    for z in (back + r, face_z - r):   # top edges, back and front
+        sc.cylinder((0, lid - r, z), 2 * r, W - 2 * r, shell, rotation=(0, 0, 90), **soft)
+    for sign in (-1, 1):
+        x = sign * (W / 2 - r)
+        for z in (back + r, face_z - r):
+            sc.sphere((x, lid - r, z), (2 * r, 2 * r, 2 * r), shell, **soft)
+        # The front corners, and the sides between the body and the face.
+        sc.cylinder((x, (DESK_Y + lid - r) / 2, face_z - r), 2 * r, lid - r - DESK_Y, shell, **soft)
+        sc.box((sign * W / 2 - sign * 0.005, (DESK_Y + lid - r) / 2, (sz - 1 + face_z - r) / 2),
+               (0.01, lid - r - DESK_Y, face_z - r - sz + 1), shell, **soft)
+    for group in (-1, 1):              # vents on the lid
         for row in range(4):
             for col in range(5):
-                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, top + 1.25, sz - 6 - row * 4), (W / 26, 0.1, 1.2),
-                       "#5a5a56", shadows=False)
+                sc.box((group * W / 4 - W / 8 + col * W / 20 + 1, lid + 0.02, sz - 8 - row * 4), (W / 26, 0.06, 1.2),
+                       "#6a6862", shadows=False)
     # The face in front of the screen: flat panels round a bevelled recess.
     t = 1.2
-    sc.box((0, (upper + B + top) / 2, face_z - t / 2), (W, top - upper - B, t), shell, roughness=0.45)
+    fw = W - 2 * r
+    sc.box((0, (upper + B + lid - r) / 2, face_z - t / 2), (fw, lid - r - upper - B, t), shell, **soft)
     face_bottom = lower - B
-    sc.box((0, (face_bottom + DESK_Y + 9) / 2, face_z - t / 2), (W, face_bottom - DESK_Y - 9, t), shell, roughness=0.45)
-    side_w = W / 2 - mon.w / 2 - B
+    sc.box((0, (face_bottom + DESK_Y + 9) / 2, face_z - t / 2), (fw, face_bottom - DESK_Y - 9, t), shell, **soft)
+    side_w = fw / 2 - mon.w / 2 - B
     for sign in (-1, 1):
-        sc.box((sign * (W / 2 - side_w / 2), sy, face_z - t / 2), (side_w, mon.h + 2 * B, t), shell, roughness=0.45)
-        sc.box((sign * W / 2, (DESK_Y + top) / 2, (sz + face_z) / 2 - 0.2), (0.01, top - DESK_Y, D), shell)
-    # The recess: four sloping panels from the screen's edge out to the face.
+        sc.box((sign * (fw / 2 - side_w / 2), sy, face_z - t / 2), (side_w, mon.h + 2 * B, t), shell, **soft)
+    # The recess: four gently sloping panels from the screen's edge out to the face.
     L = math.hypot(B, D)
     a = math.degrees(math.atan2(D, B))
-    sc.box((0, upper + B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(a, 0, 0), roughness=0.5)
-    sc.box((0, lower - B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(-a, 0, 0), roughness=0.5)
-    sc.box((left - B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, a, 0), roughness=0.5)
-    sc.box((right + B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, -a, 0), roughness=0.5)
+    sc.box((0, upper + B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(a, 0, 0), roughness=0.6)
+    sc.box((0, lower - B / 2, sz + D / 2), (mon.w + 2 * B, L, 0.5), recess, rotation=(-a, 0, 0), roughness=0.6)
+    sc.box((left - B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, a, 0), roughness=0.6)
+    sc.box((right + B / 2, sy, sz + D / 2), (L, mon.h, 0.5), recess, rotation=(0, -a, 0), roughness=0.6)
     sc.box((0, sy, sz - 0.6), (mon.w + 1.4, mon.h + 1.4, 0.6), "#1a1a1a", roughness=0.3)
-    # The keyboard deck, sloping down towards you, with the keys on top.
-    deck_len, slope = 30, 6
-    deck_y = DESK_Y + 4.5
-    sc.box((0, deck_y, deck_back + deck_len / 2 - 1), (W, 9, deck_len), shell, rotation=(slope, 0, 0), roughness=0.45)
+    # The keyboard deck, sloping down towards you, with the keys on top and
+    # a rounded front lip.
+    deck_len, slope, deck_h = 30, 6, 9
+    deck_y = DESK_Y + deck_h / 2
+    deck_z = face_z + deck_len / 2 - 1
     kx = math.radians(slope)
-    top_y = deck_y + 4.5 * math.cos(kx) + 0.05
-    sc.plane((0, top_y - 2 * math.tan(kx), deck_back + deck_len / 2 + 1 + 4.5 * math.sin(kx)), W - 6, deck_len - 8,
+    sc.box((0, deck_y, deck_z), (W, deck_h, deck_len), shell, rotation=(slope, 0, 0), **soft)
+    sc.cylinder((0, deck_y - deck_len / 2 * math.sin(kx), deck_z + deck_len / 2 * math.cos(kx)), deck_h, W, shell,
+                rotation=(0, 0, 90), **soft)
+    top_y = deck_y + deck_h / 2 * math.cos(kx) + 0.05
+    sc.plane((0, top_y - 2 * math.tan(kx), face_z + deck_len / 2 + 1 + deck_h / 2 * math.sin(kx)), W - 8, deck_len - 9,
              rotation=(-90 + slope, 0, 0), texture=keys_texture, roughness=0.55, shadows=False)
     # A small badge under the screen, and the power lamp.
-    sc.box((-mon.w / 4, lower - B - 3, face_z + 0.05), (8, 1.6, 0.2), "#3a3a44")
-    sc.sphere((W / 2 - 4, lower - B - 3, face_z + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
+    sc.box((-mon.w / 4, lower - B - 3, face_z + 0.05), (8, 1.6, 0.2), "#4a4a52")
+    sc.sphere((fw / 2 - 3, lower - B - 3, face_z + 0.1), (0.9, 0.9, 0.5), "#40ff60", emissive="#40ff60", shadows=False)
 
     textures = list(sticky_notes) + [None, None]
-    size = min(6, TERM_TOP - 1)
-    note_y = upper + B + TERM_TOP / 2
+    size = 5
+    note_y = upper + B + 3
     sc.spot("bezel-left", (left + size / 2, note_y, face_z + 0.05), size, (0, 0, 4), textures[0])
     sc.spot("right-side", (W / 2 + 0.05, sy - 2, sz - 8), 6, (0, 90, -5), textures[1])
     sc.spot("bezel-right", (right - size / 2, note_y, face_z + 0.05), size, (0, 0, -3))
@@ -971,7 +988,7 @@ def room_70s(out, rng, mon):
             sc.box((x, 19 + k * 20, -5.8), (12, 1.6, 1.4), "#c8c8c0", metalness=0.6, roughness=0.3)
 
     t_terminal_keys = save(keyboard_terminal(), out, "keyboard-terminal.png")
-    add_terminal(sc, mon, "#e6e2d6", "#d0cbbd", t_terminal_keys, sticky_notes=[t_n1, t_n2])
+    add_terminal(sc, mon, "#e6e2d6", "#dad5c7", t_terminal_keys, sticky_notes=[t_n1, t_n2])
 
     # Punch cards, a box of them, an orange mug and a pen holder.
     for k in range(5):
@@ -992,6 +1009,8 @@ def room_70s(out, rng, mon):
     sc.lights += [
         {"type": "directional", "rotation": quat(-70, 10, 0), "color": "#f0f6f0", "intensity": 0.7, "shadows": True},
         {"type": "directional", "rotation": quat(-20, 160, 0), "color": "#e8f0e8", "intensity": 0.25, "shadows": False},
+        # A soft fill from the left, so the terminal's side isn't lost in shadow.
+        {"type": "directional", "rotation": quat(-25, -70, 0), "color": "#f2f4ee", "intensity": 0.3, "shadows": False},
         {"type": "point", "position": [0, 230, -40], "color": "#f4fff4", "intensity": 1.0, "range": 450},
     ]
     return finish(sc, mon, background="#202420", ambient=("#8a9688", 0.4), fill="#6a7466")
